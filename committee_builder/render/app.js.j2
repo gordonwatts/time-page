@@ -1,0 +1,148 @@
+(() => {
+  const root = document.getElementById("app");
+  const dataTag = document.getElementById("committee-data");
+  if (!root || !dataTag) return;
+
+  let data;
+  try {
+    data = JSON.parse(dataTag.textContent || "{}");
+  } catch {
+    root.innerHTML = "<div class='error'>Invalid embedded committee data.</div>";
+    return;
+  }
+
+  const state = { query: "", selectedId: data.events?.[0]?.id ?? null };
+
+  function fmtDate(value) {
+    const d = new Date(`${value}T12:00:00`);
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  }
+
+  function fmtCompactDate(value) {
+    const d = new Date(`${value}T12:00:00`);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+
+  function getStyle(type) {
+    const styles = data.event_type_styles || {};
+    return styles[type] || { label: type, color: "slate" };
+  }
+
+  function eventMatches(event, query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    const haystack = [event.title, event.type, event.summary_md, ...(event.tags || []), ...(event.participants || [])]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(q);
+  }
+
+  function groupedByYear(events) {
+    const grouped = new Map();
+    for (const event of events) {
+      const year = new Date(`${event.date}T12:00:00`).getFullYear().toString();
+      if (!grouped.has(year)) grouped.set(year, []);
+      grouped.get(year).push(event);
+    }
+    return [...grouped.entries()].sort((a, b) => Number(a[0]) - Number(b[0]));
+  }
+
+  function esc(str) {
+    return String(str)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function render() {
+    const events = (data.events || []).filter((e) => eventMatches(e, state.query));
+    const selected = events.find((e) => e.id === state.selectedId) || events[0] || data.events?.[0];
+    if (selected) state.selectedId = selected.id;
+
+    const years = groupedByYear(events);
+    const committee = data.committee || {};
+    const start = committee.start_date ? fmtDate(committee.start_date) : "";
+    const end = committee.end_date ? fmtDate(committee.end_date) : "Present";
+
+    root.innerHTML = `
+      <div class="page">
+        <header class="hero card">
+          <div>
+            <h1>${esc(committee.name || "Committee History")}</h1>
+            <p class="subtitle">${esc(committee.subtitle || "")}</p>
+            <div class="chips">
+              <span class="chip">${esc(start)} -> ${esc(end)}</span>
+              <span class="chip">Static standalone HTML</span>
+              <span class="chip">Markdown summaries</span>
+            </div>
+          </div>
+          <label class="search"><span>Search</span><input id="search" value="${esc(state.query)}" placeholder="Search events, participants, tags..." /></label>
+        </header>
+        <main class="split">
+          <section class="card panel detail" id="detail"></section>
+          <section class="card panel timeline" id="timeline"></section>
+        </main>
+      </div>
+    `;
+
+    const detail = root.querySelector("#detail");
+    const timeline = root.querySelector("#timeline");
+    if (!selected) {
+      detail.innerHTML = "<p>No events available.</p>";
+      timeline.innerHTML = "<p>No events available.</p>";
+      return;
+    }
+
+    const selectedStyle = getStyle(selected.type);
+    const docs = (selected.documents || []).map((doc) => doc.url
+      ? `<li><a href="${esc(doc.url)}" target="_blank" rel="noopener noreferrer">${esc(doc.label)}</a></li>`
+      : `<li>${esc(doc.label)}</li>`).join("");
+    const participants = (selected.participants || []).map((p) => `<span class="chip">${esc(p)}</span>`).join("");
+    const tags = (selected.tags || []).map((t) => `<span class="chip muted">${esc(t)}</span>`).join("");
+
+    detail.innerHTML = `
+      <div class="panel-header"><h2>Selected entry</h2><span class="pill color-${esc(selectedStyle.color)}">${esc(selectedStyle.label)}</span></div>
+      <article>
+        <h3>${esc(selected.title)}</h3>
+        <div class="meta">${esc(fmtDate(selected.date))}${selected.important ? " • major event" : ""}</div>
+        <section class="summary">${selected.summary_html || ""}</section>
+        <section><h4>Participants</h4><div class="chips">${participants || "<span class='muted-text'>None</span>"}</div></section>
+        <section><h4>Documents</h4><ul>${docs || "<li class='muted-text'>None</li>"}</ul></section>
+        <section><h4>Tags</h4><div class="chips">${tags || "<span class='muted-text'>None</span>"}</div></section>
+      </article>
+    `;
+
+    let timelineHtml = `<div class="panel-header"><h2>Committee timeline</h2></div><p class="muted-text">Major moments are expanded; routine entries stay compact.</p><div class="timeline-list">`;
+    for (const [year, list] of years) {
+      timelineHtml += `<div class="year-block"><div class="year">${esc(year)}</div>`;
+      for (const event of list) {
+        const style = getStyle(event.type);
+        const isMajor = Boolean(event.important);
+        const isSelected = selected.id === event.id;
+        const cls = isMajor ? "timeline-item major" : "timeline-item minor";
+        timelineHtml += `
+          <button class="${cls}${isSelected ? " selected" : ""}" data-event-id="${esc(event.id)}" title="${esc(event.title)} • ${esc(fmtDate(event.date))} • ${esc(style.label)}">
+            <span class="dot color-${esc(style.color)}"></span>
+            <span class="date">${esc(isMajor ? fmtDate(event.date) : fmtCompactDate(event.date))}</span>
+            <span class="title">${esc(event.title)}</span>
+            <span class="pill small color-${esc(style.color)}">${esc(style.label)}</span>
+            ${isMajor ? `<span class="short">${esc(event.short_label || event.title)}</span>` : ""}
+          </button>
+        `;
+      }
+      timelineHtml += "</div>";
+    }
+    timelineHtml += "</div>";
+    timeline.innerHTML = timelineHtml;
+
+    const search = root.querySelector("#search");
+    search?.addEventListener("input", (ev) => { state.query = ev.target.value; render(); });
+    timeline.querySelectorAll("[data-event-id]").forEach((el) => {
+      el.addEventListener("click", () => { state.selectedId = el.getAttribute("data-event-id"); render(); });
+    });
+  }
+
+  render();
+})();

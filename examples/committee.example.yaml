@@ -1,0 +1,85 @@
+schema_version: "1.0"
+committee:
+  name: "Committee History Viewer"
+  subtitle: "Static single-page timeline for meetings, reports, and conclusions"
+  description_md: |
+    This is a Python-generated, standalone timeline page.
+    All data is embedded into the output HTML file.
+  start_date: "2023-01-01"
+  end_date: "2024-12-31"
+  notes_md: |
+    Use markdown with inline math like $E=mc^2$ and blocks like:
+
+    $$
+    \int_0^1 x^2 dx = 1/3
+    $$
+
+event_type_styles:
+  meeting:
+    label: "Meeting"
+    color: "sky"
+  report:
+    label: "Report"
+    color: "emerald"
+  decision:
+    label: "Decision"
+    color: "rose"
+  milestone:
+    label: "Milestone"
+    color: "amber"
+  external:
+    label: "External"
+    color: "violet"
+
+events:
+  - id: "evt-1"
+    type: "meeting"
+    title: "Kickoff Meeting"
+    date: "2023-01-12"
+    important: true
+    short_label: "Kickoff"
+    summary_md: |
+      # Kickoff Meeting
+
+      The committee established scope and cadence.
+
+      - Monthly meetings
+      - Shared repository
+    participants: ["A. Smith", "B. Jones", "C. Lee"]
+    tags: ["scope", "kickoff", "planning"]
+    documents:
+      - label: "agenda.pdf"
+      - label: "minutes.md"
+
+  - id: "evt-2"
+    type: "report"
+    title: "Initial Findings Memo"
+    date: "2023-03-25"
+    important: false
+    summary_md: |
+      ## Memo Summary
+
+      Key theme: **process ambiguity** was slowing progress.
+    participants: ["Editorial subgroup"]
+    tags: ["report", "findings"]
+    documents:
+      - label: "initial-findings.pdf"
+
+  - id: "evt-3"
+    type: "decision"
+    title: "Decision on Review Criteria"
+    date: "2023-05-18"
+    important: true
+    short_label: "Criteria Adopted"
+    summary_md: |
+      ## Decision
+
+      Adopted criteria:
+
+      1. Transparency
+      2. Timeliness
+      3. Documentation quality
+    participants: ["Full committee"]
+    tags: ["decision", "criteria"]
+    documents:
+      - label: "criteria-v2.md"

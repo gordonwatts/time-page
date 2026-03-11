@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Committee History Viewer - Committee History</title>
+  <style>:root {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #475569;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: &#34;Segoe UI&#34;, Tahoma, sans-serif; background: var(--bg); color: var(--text); }
+.page { max-width: 1280px; margin: 0 auto; padding: 24px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
+.hero { padding: 20px; display: flex; gap: 16px; justify-content: space-between; align-items: flex-end; }
+h1 { margin: 0; font-size: 1.8rem; }
+.subtitle { margin: 8px 0 0; color: var(--muted); }
+.search { display: grid; gap: 6px; min-width: 280px; font-size: 0.85rem; color: var(--muted); }
+input { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 0.95rem; }
+.split { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panel { height: 78vh; padding: 16px; overflow: auto; }
+.panel-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+h2 { margin: 0; font-size: 1.2rem; }
+h3 { margin-bottom: 6px; }
+h4 { margin: 14px 0 8px; font-size: 0.95rem; }
+.meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 10px; }
+.summary { border: 1px solid var(--border); border-radius: 12px; background: #f8fafc; padding: 12px; }
+.summary p { line-height: 1.5; }
+.summary pre { overflow: auto; }
+.timeline-list { position: relative; padding-left: 18px; }
+.timeline-list::before { content: &#34;&#34;; position: absolute; left: 5px; top: 0; bottom: 0; width: 1px; background: var(--border); }
+.year { display: inline-block; font-size: 0.75rem; color: var(--muted); background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; margin: 8px 0; position: sticky; top: 0; }
+.timeline-item { width: 100%; text-align: left; border: 1px solid transparent; background: transparent; border-radius: 10px; padding: 7px; margin-bottom: 4px; display: grid; grid-template-columns: 14px auto 1fr auto; align-items: center; gap: 8px; cursor: pointer; }
+.timeline-item:hover { background: #f8fafc; }
+.timeline-item.selected { border-color: #0f172a; box-shadow: 0 0 0 2px #cbd5e1; }
+.timeline-item.major { background: #fff; border: 1px solid var(--border); }
+.timeline-item.major .short { grid-column: 3 / 5; font-size: 0.75rem; color: var(--muted); }
+.timeline-item.minor .title { font-size: 0.8rem; }
+.date { font-size: 0.73rem; color: var(--muted); }
+.dot { width: 10px; height: 10px; border-radius: 999px; border: 2px solid rgba(15, 23, 42, 0.25); }
+.pill { border-radius: 999px; padding: 2px 8px; font-size: 0.72rem; border: 1px solid transparent; white-space: nowrap; }
+.pill.small { padding: 1px 6px; font-size: 0.65rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-block; border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 8px; font-size: 0.75rem; }
+.chip.muted { color: var(--muted); }
+.muted-text { color: var(--muted); font-size: 0.85rem; }
+.color-sky { background: #e0f2fe; color: #075985; border-color: #bae6fd; }
+.color-emerald { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+.color-rose { background: #ffe4e6; color: #9f1239; border-color: #fecdd3; }
+.color-amber { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.color-violet { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
+.color-slate { background: #e2e8f0; color: #334155; border-color: #cbd5e1; }
+.error { max-width: 820px; margin: 24px auto; border: 1px solid #fecaca; background: #fee2e2; color: #991b1b; border-radius: 12px; padding: 16px; }
+@media (max-width: 1024px) {
+  .hero { flex-direction: column; align-items: stretch; }
+  .split { grid-template-columns: 1fr; }
+  .panel { height: auto; max-height: 72vh; }
+}
+</style>
+</head>
+<body>
+  <div id="app"></div>
+  <script id="committee-data" type="application/json">{&#34;schema_version&#34;: &#34;1.0&#34;, &#34;committee&#34;: {&#34;name&#34;: &#34;Committee History Viewer&#34;, &#34;subtitle&#34;: &#34;Static single-page timeline for meetings, reports, and conclusions&#34;, &#34;description_md&#34;: &#34;This is a Python-generated, standalone timeline page.\nAll data is embedded into the output HTML file.\n&#34;, &#34;start_date&#34;: &#34;2023-01-01&#34;, &#34;end_date&#34;: &#34;2024-12-31&#34;, &#34;notes_md&#34;: &#34;Use markdown with inline math like $E=mc^2$ and blocks like:\n\n$$\n\\int_0^1 x^2 dx = 1/3\n$$\n&#34;, &#34;description_html&#34;: &#34;&lt;p&gt;This is a Python-generated, standalone timeline page.\nAll data is embedded into the output HTML file.&lt;\/p&gt;\n&#34;, &#34;notes_html&#34;: &#34;&lt;p&gt;Use markdown with inline math like &lt;span class=\&#34;math inline\&#34;&gt;E=mc^2&lt;\/span&gt; and blocks like:&lt;\/p&gt;\n&lt;div class=\&#34;math block\&#34;&gt;\n\\int_0^1 x^2 dx = 1/3\n&lt;\/div&gt;\n&#34;}, &#34;event_type_styles&#34;: {&#34;meeting&#34;: {&#34;label&#34;: &#34;Meeting&#34;, &#34;color&#34;: &#34;sky&#34;}, &#34;report&#34;: {&#34;label&#34;: &#34;Report&#34;, &#34;color&#34;: &#34;emerald&#34;}, &#34;decision&#34;: {&#34;label&#34;: &#34;Decision&#34;, &#34;color&#34;: &#34;rose&#34;}, &#34;milestone&#34;: {&#34;label&#34;: &#34;Milestone&#34;, &#34;color&#34;: &#34;amber&#34;}, &#34;external&#34;: {&#34;label&#34;: &#34;External&#34;, &#34;color&#34;: &#34;violet&#34;}}, &#34;events&#34;: [{&#34;id&#34;: &#34;evt-1&#34;, &#34;type&#34;: &#34;meeting&#34;, &#34;title&#34;: &#34;Kickoff Meeting&#34;, &#34;date&#34;: &#34;2023-01-12&#34;, &#34;important&#34;: true, &#34;short_label&#34;: &#34;Kickoff&#34;, &#34;summary_md&#34;: &#34;# Kickoff Meeting\n\nThe committee established scope and cadence.\n\n- Monthly meetings\n- Shared repository\n&#34;, &#34;participants&#34;: [&#34;A. Smith&#34;, &#34;B. Jones&#34;, &#34;C. Lee&#34;], &#34;tags&#34;: [&#34;scope&#34;, &#34;kickoff&#34;, &#34;planning&#34;], &#34;documents&#34;: [{&#34;label&#34;: &#34;agenda.pdf&#34;, &#34;url&#34;: null}, {&#34;label&#34;: &#34;minutes.md&#34;, &#34;url&#34;: null}], &#34;summary_html&#34;: &#34;&lt;h1&gt;Kickoff Meeting&lt;\/h1&gt;\n&lt;p&gt;The committee established scope and cadence.&lt;\/p&gt;\n&lt;ul&gt;\n&lt;li&gt;Monthly meetings&lt;\/li&gt;\n&lt;li&gt;Shared repository&lt;\/li&gt;\n&lt;\/ul&gt;\n&#34;}, {&#34;id&#34;: &#34;evt-2&#34;, &#34;type&#34;: &#34;report&#34;, &#34;title&#34;: &#34;Initial Findings Memo&#34;, &#34;date&#34;: &#34;2023-03-25&#34;, &#34;important&#34;: false, &#34;short_label&#34;: null, &#34;summary_md&#34;: &#34;## Memo Summary\n\nKey theme: **process ambiguity** was slowing progress.\n&#34;, &#34;participants&#34;: [&#34;Editorial subgroup&#34;], &#34;tags&#34;: [&#34;report&#34;, &#34;findings&#34;], &#34;documents&#34;: [{&#34;label&#34;: &#34;initial-findings.pdf&#34;, &#34;url&#34;: null}], &#34;summary_html&#34;: &#34;&lt;h2&gt;Memo Summary&lt;\/h2&gt;\n&lt;p&gt;Key theme: &lt;strong&gt;process ambiguity&lt;\/strong&gt; was slowing progress.&lt;\/p&gt;\n&#34;}, {&#34;id&#34;: &#34;evt-3&#34;, &#34;type&#34;: &#34;decision&#34;, &#34;title&#34;: &#34;Decision on Review Criteria&#34;, &#34;date&#34;: &#34;2023-05-18&#34;, &#34;important&#34;: true, &#34;short_label&#34;: &#34;Criteria Adopted&#34;, &#34;summary_md&#34;: &#34;## Decision\n\nAdopted criteria:\n\n1. Transparency\n2. Timeliness\n3. Documentation quality\n&#34;, &#34;participants&#34;: [&#34;Full committee&#34;], &#34;tags&#34;: [&#34;decision&#34;, &#34;criteria&#34;], &#34;documents&#34;: [{&#34;label&#34;: &#34;criteria-v2.md&#34;, &#34;url&#34;: null}], &#34;summary_html&#34;: &#34;&lt;h2&gt;Decision&lt;\/h2&gt;\n&lt;p&gt;Adopted criteria:&lt;\/p&gt;\n&lt;ol&gt;\n&lt;li&gt;Transparency&lt;\/li&gt;\n&lt;li&gt;Timeliness&lt;\/li&gt;\n&lt;li&gt;Documentation quality&lt;\/li&gt;\n&lt;\/ol&gt;\n&#34;}]}</script>
+  <script>(() =&gt; {
+  const root = document.getElementById(&#34;app&#34;);
+  const dataTag = document.getElementById(&#34;committee-data&#34;);
+  if (!root || !dataTag) return;
+
+  let data;
+  try {
+    data = JSON.parse(dataTag.textContent || &#34;{}&#34;);
+  } catch {
+    root.innerHTML = &#34;&lt;div class=&#39;error&#39;&gt;Invalid embedded committee data.&lt;/div&gt;&#34;;
+    return;
+  }
+
+  const state = { query: &#34;&#34;, selectedId: data.events?.[0]?.id ?? null };
+
+  function fmtDate(value) {
+    const d = new Date(`${value}T12:00:00`);
+    return d.toLocaleDateString(&#34;en-US&#34;, { year: &#34;numeric&#34;, month: &#34;short&#34;, day: &#34;numeric&#34; });
+  }
+
+  function fmtCompactDate(value) {
+    const d = new Date(`${value}T12:00:00`);
+    return d.toLocaleDateString(&#34;en-US&#34;, { month: &#34;short&#34;, day: &#34;numeric&#34; });
+  }
+
+  function getStyle(type) {
+    const styles = data.event_type_styles || {};
+    return styles[type] || { label: type, color: &#34;slate&#34; };
+  }
+
+  function eventMatches(event, query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    const haystack = [event.title, event.type, event.summary_md, ...(event.tags || []), ...(event.participants || [])]
+      .join(&#34; &#34;)
+      .toLowerCase();
+    return haystack.includes(q);
+  }
+
+  function groupedByYear(events) {
+    const grouped = new Map();
+    for (const event of events) {
+      const year = new Date(`${event.date}T12:00:00`).getFullYear().toString();
+      if (!grouped.has(year)) grouped.set(year, []);
+      grouped.get(year).push(event);
+    }
+    return [...grouped.entries()].sort((a, b) =&gt; Number(a[0]) - Number(b[0]));
+  }
+
+  function esc(str) {
+    return String(str)
+      .replaceAll(&#34;&amp;&#34;, &#34;&amp;amp;&#34;)
+      .replaceAll(&#34;&lt;&#34;, &#34;&amp;lt;&#34;)
+      .replaceAll(&#34;&gt;&#34;, &#34;&amp;gt;&#34;)
+      .replaceAll(&#39;&#34;&#39;, &#34;&amp;quot;&#34;)
+      .replaceAll(&#34;&#39;&#34;, &#34;&amp;#039;&#34;);
+  }
+
+  function render() {
+    const events = (data.events || []).filter((e) =&gt; eventMatches(e, state.query));
+    const selected = events.find((e) =&gt; e.id === state.selectedId) || events[0] || data.events?.[0];
+    if (selected) state.selectedId = selected.id;
+
+    const years = groupedByYear(events);
+    const committee = data.committee || {};
+    const start = committee.start_date ? fmtDate(committee.start_date) : &#34;&#34;;
+    const end = committee.end_date ? fmtDate(committee.end_date) : &#34;Present&#34;;
+
+    root.innerHTML = `
+      &lt;div class=&#34;page&#34;&gt;
+        &lt;header class=&#34;hero card&#34;&gt;
+          &lt;div&gt;
+            &lt;h1&gt;${esc(committee.name || &#34;Committee History&#34;)}&lt;/h1&gt;
+            &lt;p class=&#34;subtitle&#34;&gt;${esc(committee.subtitle || &#34;&#34;)}&lt;/p&gt;
+            &lt;div class=&#34;chips&#34;&gt;
+              &lt;span class=&#34;chip&#34;&gt;${esc(start)} -&gt; ${esc(end)}&lt;/span&gt;
+              &lt;span class=&#34;chip&#34;&gt;Static standalone HTML&lt;/span&gt;
+              &lt;span class=&#34;chip&#34;&gt;Markdown summaries&lt;/span&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;label class=&#34;search&#34;&gt;&lt;span&gt;Search&lt;/span&gt;&lt;input id=&#34;search&#34; value=&#34;${esc(state.query)}&#34; placeholder=&#34;Search events, participants, tags...&#34; /&gt;&lt;/label&gt;
+        &lt;/header&gt;
+        &lt;main class=&#34;split&#34;&gt;
+          &lt;section class=&#34;card panel detail&#34; id=&#34;detail&#34;&gt;&lt;/section&gt;
+          &lt;section class=&#34;card panel timeline&#34; id=&#34;timeline&#34;&gt;&lt;/section&gt;
+        &lt;/main&gt;
+      &lt;/div&gt;
+    `;
+
+    const detail = root.querySelector(&#34;#detail&#34;);
+    const timeline = root.querySelector(&#34;#timeline&#34;);
+    if (!selected) {
+      detail.innerHTML = &#34;&lt;p&gt;No events available.&lt;/p&gt;&#34;;
+      timeline.innerHTML = &#34;&lt;p&gt;No events available.&lt;/p&gt;&#34;;
+      return;
+    }
+
+    const selectedStyle = getStyle(selected.type);
+    const docs = (selected.documents || []).map((doc) =&gt; doc.url
+      ? `&lt;li&gt;&lt;a href=&#34;${esc(doc.url)}&#34; target=&#34;_blank&#34; rel=&#34;noopener noreferrer&#34;&gt;${esc(doc.label)}&lt;/a&gt;&lt;/li&gt;`
+      : `&lt;li&gt;${esc(doc.label)}&lt;/li&gt;`).join(&#34;&#34;);
+    const participants = (selected.participants || []).map((p) =&gt; `&lt;span class=&#34;chip&#34;&gt;${esc(p)}&lt;/span&gt;`).join(&#34;&#34;);
+    const tags = (selected.tags || []).map((t) =&gt; `&lt;span class=&#34;chip muted&#34;&gt;${esc(t)}&lt;/span&gt;`).join(&#34;&#34;);
+
+    detail.innerHTML = `
+      &lt;div class=&#34;panel-header&#34;&gt;&lt;h2&gt;Selected entry&lt;/h2&gt;&lt;span class=&#34;pill color-${esc(selectedStyle.color)}&#34;&gt;${esc(selectedStyle.label)}&lt;/span&gt;&lt;/div&gt;
+      &lt;article&gt;
+        &lt;h3&gt;${esc(selected.title)}&lt;/h3&gt;
+        &lt;div class=&#34;meta&#34;&gt;${esc(fmtDate(selected.date))}${selected.important ? &#34; • major event&#34; : &#34;&#34;}&lt;/div&gt;
+        &lt;section class=&#34;summary&#34;&gt;${selected.summary_html || &#34;&#34;}&lt;/section&gt;
+        &lt;section&gt;&lt;h4&gt;Participants&lt;/h4&gt;&lt;div class=&#34;chips&#34;&gt;${participants || &#34;&lt;span class=&#39;muted-text&#39;&gt;None&lt;/span&gt;&#34;}&lt;/div&gt;&lt;/section&gt;
+        &lt;section&gt;&lt;h4&gt;Documents&lt;/h4&gt;&lt;ul&gt;${docs || &#34;&lt;li class=&#39;muted-text&#39;&gt;None&lt;/li&gt;&#34;}&lt;/ul&gt;&lt;/section&gt;
+        &lt;section&gt;&lt;h4&gt;Tags&lt;/h4&gt;&lt;div class=&#34;chips&#34;&gt;${tags || &#34;&lt;span class=&#39;muted-text&#39;&gt;None&lt;/span&gt;&#34;}&lt;/div&gt;&lt;/section&gt;
+      &lt;/article&gt;
+    `;
+
+    let timelineHtml = `&lt;div class=&#34;panel-header&#34;&gt;&lt;h2&gt;Committee timeline&lt;/h2&gt;&lt;/div&gt;&lt;p class=&#34;muted-text&#34;&gt;Major moments are expanded; routine entries stay compact.&lt;/p&gt;&lt;div class=&#34;timeline-list&#34;&gt;`;
+    for (const [year, list] of years) {
+      timelineHtml += `&lt;div class=&#34;year-block&#34;&gt;&lt;div class=&#34;year&#34;&gt;${esc(year)}&lt;/div&gt;`;
+      for (const event of list) {
+        const style = getStyle(event.type);
+        const isMajor = Boolean(event.important);
+        const isSelected = selected.id === event.id;
+        const cls = isMajor ? &#34;timeline-item major&#34; : &#34;timeline-item minor&#34;;
+        timelineHtml += `
+          &lt;button class=&#34;${cls}${isSelected ? &#34; selected&#34; : &#34;&#34;}&#34; data-event-id=&#34;${esc(event.id)}&#34; title=&#34;${esc(event.title)} • ${esc(fmtDate(event.date))} • ${esc(style.label)}&#34;&gt;
+            &lt;span class=&#34;dot color-${esc(style.color)}&#34;&gt;&lt;/span&gt;
+            &lt;span class=&#34;date&#34;&gt;${esc(isMajor ? fmtDate(event.date) : fmtCompactDate(event.date))}&lt;/span&gt;
+            &lt;span class=&#34;title&#34;&gt;${esc(event.title)}&lt;/span&gt;
+            &lt;span class=&#34;pill small color-${esc(style.color)}&#34;&gt;${esc(style.label)}&lt;/span&gt;
+            ${isMajor ? `&lt;span class=&#34;short&#34;&gt;${esc(event.short_label || event.title)}&lt;/span&gt;` : &#34;&#34;}
+          &lt;/button&gt;
+        `;
+      }
+      timelineHtml += &#34;&lt;/div&gt;&#34;;
+    }
+    timelineHtml += &#34;&lt;/div&gt;&#34;;
+    timeline.innerHTML = timelineHtml;
+
+    const search = root.querySelector(&#34;#search&#34;);
+    search?.addEventListener(&#34;input&#34;, (ev) =&gt; { state.query = ev.target.value; render(); });
+    timeline.querySelectorAll(&#34;[data-event-id]&#34;).forEach((el) =&gt; {
+      el.addEventListener(&#34;click&#34;, () =&gt; { state.selectedId = el.getAttribute(&#34;data-event-id&#34;); render(); });
+    });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
