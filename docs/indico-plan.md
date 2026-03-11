@@ -10,24 +10,25 @@ This section captures the planned implementation for importing meetings from Ind
 
 ### CLI and config goals
 
-1. Add a project-local config file (e.g. `.committee.indico.yaml`) to track multiple Indico category sources.
-2. Add source management commands:
+1. Add a project config file (e.g. `.committee.indico.yaml`) to track multiple Indico category sources.
+   - User can have multiple project files - so the project file needs to be specified by the user for all project related commands.
+3. Add source management commands:
    - `committee sources add`
    - `committee sources list`
    - `committee sources remove`
-3. Add meeting generation command:
-   - `committee meetings generate --from YYYY-MM-DD --to YYYY-MM-DD`
+4. Add meeting generation command - to output a yaml file with a meetings list:
+   - `committee sources generate project.yaml --from YYYY-MM-DD --to YYYY-MM-DD` - default output will be `project-meetings.yaml`, or `--output`.
    - convenience ranges like `--past-weeks 3 --future-weeks 1`
 
 ### Authentication approach
 
-- Support private feeds by reading credentials from environment variables.
+- Support private feeds by reading credentials from environment variables or a .env file in the home directory.
 - Config stores env-var names (for example `INDICO_API_KEY`, `INDICO_API_TOKEN`) rather than raw secrets.
 - The command resolves env vars at runtime and initializes `indico-client` with those credentials.
 
 ### Output contract
 
-- Generated YAML must validate against existing schema and be directly consumable by:
+- Generated YAML (`project-meetings.yaml`) must validate against existing schema and be directly consumable by:
   - `committee validate <generated.yaml>`
   - `committee build <generated.yaml>`
 - Event mapping should be deterministic:
