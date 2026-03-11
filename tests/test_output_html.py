@@ -38,3 +38,15 @@ def test_output_contains_inlined_assets_and_data(tmp_path: Path) -> None:
     assert '<script id="committee-data" type="application/json">' in text
     assert "Output Test" in text
     assert "timeline-item" in text
+
+
+def test_output_does_not_escape_inline_script_and_json(tmp_path: Path) -> None:
+    src = tmp_path / "source.yaml"
+    src.write_text(SAMPLE, encoding="utf-8")
+
+    out = build_html(src, output_path=None, overwrite=False)
+    text = out.read_text(encoding="utf-8")
+
+    assert "&#34;" not in text
+    assert "(() => {" in text
+    assert 'const root = document.getElementById("app");' in text

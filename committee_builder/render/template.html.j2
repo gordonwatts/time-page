@@ -4,11 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ page_title | e }} - Committee History</title>
-  <style>{{ css }}</style>
+  <style>{{ css | safe }}</style>
 </head>
 <body>
   <div id="app"></div>
-  <script id="committee-data" type="application/json">{{ data_json }}</script>
-  <script>{{ app_js }}</script>
+  <script id="committee-data" type="application/json">{{ data_json | safe }}</script>
+  <script>{{ app_js | safe }}</script>
 </body>
 </html>
