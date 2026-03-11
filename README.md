@@ -165,3 +165,13 @@ Math not rendering as expected:
 
 - Use `$...$` for inline and `$$...$$` for block expressions.
 - Ensure backslashes in YAML block strings are escaped where needed.
+
+
+## Planned Indico integration
+
+For the upcoming meetings import workflow, this project will use the official `indico-client` Python package and the vendor documentation as the implementation reference:
+
+- https://pypi.org/project/indico-client/
+- https://developer.indicodata.ai/docs/getting-started
+
+See `docs/indico-plan.md` for the detailed implementation plan, including source management commands, authenticated access for private feeds, and generation of build-compatible YAML.
