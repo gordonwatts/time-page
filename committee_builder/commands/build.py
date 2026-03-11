@@ -37,7 +37,9 @@ def build_command(
     The output contains inlined CSS, JS, and committee data.
     """
     try:
-        output_path = build_html(input_yaml=input_yaml, output_path=output, overwrite=overwrite)
+        output_path = build_html(
+            input_yaml=input_yaml, output_path=output, overwrite=overwrite
+        )
     except Exception as exc:  # noqa: BLE001
         logger.error("Build failed: %s", exc)
         raise typer.Exit(code=1) from exc

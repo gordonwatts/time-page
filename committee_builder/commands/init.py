@@ -47,8 +47,12 @@ STARTER_DOC = {
 
 
 def init_command(
-    path: Path = typer.Argument(..., help="Path where the starter YAML should be created."),
-    force: bool = typer.Option(False, "--force", help="Overwrite existing file if present."),
+    path: Path = typer.Argument(
+        ..., help="Path where the starter YAML should be created."
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Overwrite existing file if present."
+    ),
 ) -> None:
     """Create a starter YAML source file."""
     if path.exists() and not force:

@@ -43,7 +43,10 @@ def validate_semantics(history: CommitteeHistory) -> ValidationResult:
                 f"{history.committee.end_date.isoformat()}"
             )
 
-    if history.committee.end_date and history.committee.end_date < history.committee.start_date:
+    if (
+        history.committee.end_date
+        and history.committee.end_date < history.committee.start_date
+    ):
         errors.append("committee.end_date cannot be before committee.start_date")
 
     if errors:

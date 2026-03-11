@@ -1,0 +1,230 @@
+"""Indico source management and meeting generation commands."""
+
+from __future__ import annotations
+
+import logging
+from datetime import date, timedelta
+from pathlib import Path
+
+import typer
+
+from committee_builder.indico.client import fetch_meetings
+from committee_builder.indico.config import (
+    IndicoConfig,
+    IndicoSource,
+    load_indico_config,
+    save_indico_config,
+)
+from committee_builder.io.yaml_io import write_yaml
+from committee_builder.pipeline.validate_pipeline import validate_yaml
+
+logger = logging.getLogger(__name__)
+
+
+DEFAULT_CONFIG_PATH = Path(".committee.indico.yaml")
+
+
+def add_source_command(
+    name: str = typer.Argument(
+        ..., help="Friendly source name (used in generated event IDs)."
+    ),
+    category_id: int = typer.Argument(
+        ..., help="Indico category ID to ingest meetings from."
+    ),
+    base_url: str = typer.Option(
+        ..., "--base-url", help="Base URL of the Indico instance."
+    ),
+    config: Path = typer.Option(
+        DEFAULT_CONFIG_PATH, "--config", help="Path to source config file."
+    ),
+    api_key_env: str = typer.Option(
+        "INDICO_API_KEY", "--api-key-env", help="Env var for API key."
+    ),
+    api_token_env: str = typer.Option(
+        "INDICO_API_TOKEN", "--api-token-env", help="Env var for API token."
+    ),
+) -> None:
+    """Add or replace a named source in the project config."""
+    current = load_indico_config(config)
+    filtered_sources = [source for source in current.sources if source.name != name]
+    filtered_sources.append(
+        IndicoSource(
+            name=name,
+            category_id=category_id,
+            base_url=base_url,
+            api_key_env=api_key_env,
+            api_token_env=api_token_env,
+        )
+    )
+    save_indico_config(
+        config, IndicoConfig(version=current.version, sources=filtered_sources)
+    )
+    logger.info("Saved source '%s' in %s", name, config)
+
+
+def list_sources_command(
+    config: Path = typer.Option(
+        DEFAULT_CONFIG_PATH, "--config", help="Path to source config file."
+    ),
+) -> None:
+    """List all configured sources."""
+    current = load_indico_config(config)
+    if not current.sources:
+        typer.echo("No sources configured.")
+        return
+
+    for source in sorted(current.sources, key=lambda item: item.name):
+        typer.echo(
+            f"{source.name}: category={source.category_id}, base_url={source.base_url}, "
+            f"api_key_env={source.api_key_env}, api_token_env={source.api_token_env}"
+        )
+
+
+def remove_source_command(
+    name: str = typer.Argument(..., help="Source name to remove."),
+    config: Path = typer.Option(
+        DEFAULT_CONFIG_PATH, "--config", help="Path to source config file."
+    ),
+) -> None:
+    """Remove a source by name."""
+    current = load_indico_config(config)
+    filtered = [source for source in current.sources if source.name != name]
+    if len(filtered) == len(current.sources):
+        raise typer.BadParameter(f"Source not found: {name}")
+
+    save_indico_config(config, IndicoConfig(version=current.version, sources=filtered))
+    logger.info("Removed source '%s' from %s", name, config)
+
+
+def generate_sources_command(
+    project_yaml: Path = typer.Argument(..., help="Base committee YAML file."),
+    config: Path = typer.Option(
+        DEFAULT_CONFIG_PATH, "--config", help="Path to source config file."
+    ),
+    source: list[str] = typer.Option(
+        None, "--source", help="Specific source(s) to include."
+    ),
+    from_date: str | None = typer.Option(
+        None, "--from", help="Inclusive date in YYYY-MM-DD format."
+    ),
+    to_date: str | None = typer.Option(
+        None, "--to", help="Inclusive date in YYYY-MM-DD format."
+    ),
+    past_weeks: int | None = typer.Option(
+        None, "--past-weeks", help="Relative range start."
+    ),
+    future_weeks: int | None = typer.Option(
+        None, "--future-weeks", help="Relative range end."
+    ),
+    output: Path | None = typer.Option(None, "--output", help="Output YAML path."),
+) -> None:
+    """Generate a new committee YAML with imported Indico meeting events."""
+    parsed_from = _parse_iso_date(from_date, option_name="--from")
+    parsed_to = _parse_iso_date(to_date, option_name="--to")
+    range_start, range_end = _resolve_range(
+        parsed_from, parsed_to, past_weeks, future_weeks
+    )
+    config_data = load_indico_config(config)
+    selected = _select_sources(config_data, source)
+    validated = validate_yaml(project_yaml)
+    event_styles = validated.history.event_type_styles
+
+    generated_events: list[dict[str, object]] = []
+    for selected_source in selected:
+        for meeting in fetch_meetings(selected_source, range_start, range_end):
+            event_doc: dict[str, object] = {
+                "id": f"{selected_source.name}-{meeting.remote_id}",
+                "type": "meeting",
+                "title": meeting.title,
+                "date": meeting.start_datetime.date().isoformat(),
+                "important": False,
+                "summary_md": meeting.description
+                or f"Imported from source `{selected_source.name}`.",
+                "participants": [],
+                "tags": [selected_source.name],
+                "documents": [],
+            }
+            if meeting.url:
+                event_doc["documents"] = [{"label": "Event Link", "url": meeting.url}]
+            generated_events.append(event_doc)
+
+    generated_events.sort(key=lambda item: (str(item["date"]), str(item["id"])))
+    existing_events = [
+        event.model_dump(mode="json") for event in validated.history.events
+    ]
+
+    merged_events: dict[str, dict[str, object]] = {
+        str(event["id"]): event for event in existing_events + generated_events
+    }
+
+    output_path = output or project_yaml.with_name(f"{project_yaml.stem}-meetings.yaml")
+    output_payload = {
+        "schema_version": validated.history.schema_version,
+        "committee": validated.history.committee.model_dump(mode="json"),
+        "event_type_styles": {
+            event_type.value: event_style.model_dump(mode="json")
+            for event_type, event_style in event_styles.items()
+        },
+        "events": [merged_events[event_id] for event_id in sorted(merged_events)],
+    }
+    write_yaml(output_path, output_payload)
+    logger.info(
+        "Generated %s with %s imported meetings", output_path, len(generated_events)
+    )
+
+
+def _resolve_range(
+    from_date: date | None,
+    to_date: date | None,
+    past_weeks: int | None,
+    future_weeks: int | None,
+) -> tuple[date, date]:
+    has_absolute = from_date is not None or to_date is not None
+    has_relative = past_weeks is not None or future_weeks is not None
+
+    if has_absolute and has_relative:
+        raise typer.BadParameter(
+            "Use either --from/--to or --past-weeks/--future-weeks, not both."
+        )
+
+    if has_absolute:
+        if from_date is None or to_date is None:
+            raise typer.BadParameter(
+                "Both --from and --to are required for absolute ranges."
+            )
+        if to_date < from_date:
+            raise typer.BadParameter("--to cannot be before --from.")
+        return from_date, to_date
+
+    current_day = date.today()
+    effective_past_weeks = past_weeks or 0
+    effective_future_weeks = future_weeks or 0
+    start = current_day - timedelta(weeks=effective_past_weeks)
+    end = current_day + timedelta(weeks=effective_future_weeks)
+    if end < start:
+        raise typer.BadParameter("Computed relative range is invalid.")
+    return start, end
+
+
+def _parse_iso_date(value: str | None, option_name: str) -> date | None:
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise typer.BadParameter(f"Invalid date for {option_name}: {value}") from exc
+
+
+def _select_sources(config: IndicoConfig, names: list[str]) -> list[IndicoSource]:
+    if not config.sources:
+        raise typer.BadParameter(
+            "No sources configured. Run `committee sources add` first."
+        )
+    if not names:
+        return config.sources
+
+    source_lookup = {source.name: source for source in config.sources}
+    missing_sources = sorted(name for name in names if name not in source_lookup)
+    if missing_sources:
+        raise typer.BadParameter(f"Unknown source(s): {', '.join(missing_sources)}")
+    return [source_lookup[name] for name in names]

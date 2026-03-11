@@ -91,6 +91,36 @@ committee build data/committee.history.yaml --output dist/committee-history.html
 - `committee init PATH [--force]`
 - `committee import-csv` (placeholder)
 - `committee import-md` (placeholder)
+- `committee sources add NAME CATEGORY_ID --base-url URL [--config PATH]`
+- `committee sources list [--config PATH]`
+- `committee sources remove NAME [--config PATH]`
+- `committee sources generate PROJECT_YAML --from YYYY-MM-DD --to YYYY-MM-DD [--config PATH] [--output PATH]`
+
+### Indico source workflow
+
+Install the official client dependency:
+
+```bash
+pip install indico-client
+```
+
+Configure a source:
+
+```bash
+committee sources add cern 1234 --base-url https://indico.example.org
+```
+
+Generate meeting events into a new YAML file:
+
+```bash
+committee sources generate data/committee.history.yaml --from 2024-01-01 --to 2024-12-31
+```
+
+You can also generate with a relative range:
+
+```bash
+committee sources generate data/committee.history.yaml --past-weeks 3 --future-weeks 1
+```
 
 See command help:
 
