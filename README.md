@@ -24,6 +24,34 @@ Optional dev tools:
 pip install -e .[dev]
 ```
 
+## Run with `uvx` (no local install)
+
+Prerequisite: install `uv` on the machine ([docs](https://docs.astral.sh/uv/)).
+
+Run directly from a local checkout:
+
+```bash
+uvx --from . committee --help
+uvx --from . committee build examples/committee.example.yaml --overwrite
+```
+
+Run directly from this GitHub repo:
+
+```bash
+uvx --from git+https://github.com/gordonwatts/time-page.git committee --help
+```
+
+Run from a published package (recommended for "any computer" usage):
+
+```bash
+uvx --from committee-history-builder committee --help
+```
+
+## Gaps to close for true "any computer" `uvx` usage
+
+- Publish `committee-history-builder` to PyPI (or another index) so users can run `uvx --from committee-history-builder ...` without cloning the repo.
+- Add a CI smoke test that runs `uvx --from . committee --help` (and optionally `uvx --from committee-history-builder committee --help` after publish) to prevent packaging/entry-point regressions.
+
 ## Quickstart
 
 Create a starter file:
