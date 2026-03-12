@@ -22,18 +22,47 @@ class IndicoMeeting:
 
 
 def fetch_meetings(
-    source: IndicoSource, start_date: date, end_date: date
+    source: IndicoSource,
+    start_date: date,
+    end_date: date,
+    api_key_env: str = "INDICO_API_KEY",
+    api_token_env: str = "INDICO_API_TOKEN",
 ) -> list[IndicoMeeting]:
-    """Fetch meetings for a source and normalize payloads.
+    """Fetch meetings for a source and normalize payloads."""
+    client = _build_client(
+        base_url=source.base_url,
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    raw_records = _query_records(client, source.category_id, start_date, end_date)
+    return [_normalize_record(record) for record in raw_records]
 
-    This uses `indico-client` when available. We intentionally keep mapping lenient so
-    unit tests can provide mocked responses from various client method shapes.
-    """
-    api_key = os.getenv(source.api_key_env)
-    api_token = os.getenv(source.api_token_env)
+
+def fetch_category_title(
+    base_url: str,
+    category_id: int,
+    api_key_env: str = "INDICO_API_KEY",
+    api_token_env: str = "INDICO_API_TOKEN",
+) -> str:
+    """Resolve a category title from Indico."""
+    client = _build_client(
+        base_url=base_url,
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    raw_category = _query_category(client, category_id)
+    category_title = str(_pick(raw_category, "title", "name", default="")).strip()
+    if not category_title:
+        raise RuntimeError(f"No title returned for category {category_id}.")
+    return category_title
+
+
+def _build_client(base_url: str, api_key_env: str, api_token_env: str) -> Any:
+    api_key = os.getenv(api_key_env)
+    api_token = os.getenv(api_token_env)
     if not api_key or not api_token:
         raise ValueError(
-            f"Missing Indico credentials in env vars: {source.api_key_env}, {source.api_token_env}"
+            f"Missing Indico credentials in env vars: {api_key_env}, {api_token_env}"
         )
 
     try:
@@ -43,11 +72,7 @@ def fetch_meetings(
             "indico-client is required for meeting generation. Install it to use this command."
         ) from exc
 
-    client = IndicoClient(
-        base_url=source.base_url, api_key=api_key, api_token=api_token
-    )
-    raw_records = _query_records(client, source.category_id, start_date, end_date)
-    return [_normalize_record(record) for record in raw_records]
+    return IndicoClient(base_url=base_url, api_key=api_key, api_token=api_token)
 
 
 def _query_records(
@@ -56,8 +81,16 @@ def _query_records(
     """Attempt known query entry points supported by different client versions."""
     if hasattr(client, "list_events") and callable(client.list_events):
         return list(
-            client.list_events(
-                category_id=category_id, start_date=start_date, end_date=end_date
+            _try_call(
+                client.list_events,
+                attempts=[
+                    {
+                        "category_id": category_id,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                    },
+                    {"category": category_id, "start_date": start_date, "end_date": end_date},
+                ],
             )
         )
 
@@ -67,12 +100,62 @@ def _query_records(
         and callable(client.events.list)
     ):
         return list(
-            client.events.list(
-                category_id=category_id, start_date=start_date, end_date=end_date
+            _try_call(
+                client.events.list,
+                attempts=[
+                    {
+                        "category_id": category_id,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                    },
+                    {"category": category_id, "start_date": start_date, "end_date": end_date},
+                ],
             )
         )
 
     raise RuntimeError("Unsupported indico-client API shape for fetching events.")
+
+
+def _query_category(client: Any, category_id: int) -> Any:
+    if hasattr(client, "get_category") and callable(client.get_category):
+        return _try_call(
+            client.get_category,
+            attempts=[
+                {"category_id": category_id},
+                {"id": category_id},
+                (category_id,),
+            ],
+        )
+
+    if (
+        hasattr(client, "categories")
+        and hasattr(client.categories, "get")
+        and callable(client.categories.get)
+    ):
+        return _try_call(
+            client.categories.get,
+            attempts=[
+                {"category_id": category_id},
+                {"id": category_id},
+                (category_id,),
+            ],
+        )
+
+    raise RuntimeError("Unsupported indico-client API shape for fetching categories.")
+
+
+def _try_call(function: Any, attempts: list[Any]) -> Any:
+    last_type_error: TypeError | None = None
+    for attempt in attempts:
+        try:
+            if isinstance(attempt, tuple):
+                return function(*attempt)
+            return function(**attempt)
+        except TypeError as exc:
+            last_type_error = exc
+    if last_type_error:
+        raise RuntimeError("Unsupported indico-client method signature.") from last_type_error
+    raise RuntimeError("No compatible call signature found.")
 
 
 def _normalize_record(record: Any) -> IndicoMeeting:

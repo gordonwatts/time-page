@@ -12,13 +12,12 @@ from committee_builder.io.yaml_io import read_yaml, write_yaml
 class IndicoSource(BaseModel):
     """Single configured Indico category source."""
 
-    model_config = ConfigDict(extra="forbid")
+    # Ignore legacy per-source credential fields if present in existing files.
+    model_config = ConfigDict(extra="ignore")
 
     name: str = Field(min_length=1)
     category_id: int
     base_url: str = Field(min_length=1)
-    api_key_env: str = Field(default="INDICO_API_KEY", min_length=1)
-    api_token_env: str = Field(default="INDICO_API_TOKEN", min_length=1)
 
 
 class IndicoConfig(BaseModel):

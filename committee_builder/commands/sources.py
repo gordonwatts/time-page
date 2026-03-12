@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 import typer
 
-from committee_builder.indico.client import fetch_meetings
+from committee_builder.indico.client import fetch_category_title, fetch_meetings
 from committee_builder.indico.config import (
     IndicoConfig,
     IndicoSource,
@@ -20,86 +22,96 @@ from committee_builder.pipeline.validate_pipeline import validate_yaml
 
 logger = logging.getLogger(__name__)
 
-
-DEFAULT_CONFIG_PATH = Path(".committee.indico.yaml")
+DEFAULT_API_KEY_ENV = "INDICO_API_KEY"
+DEFAULT_API_TOKEN_ENV = "INDICO_API_TOKEN"
 
 
 def add_source_command(
-    name: str = typer.Argument(
-        ..., help="Friendly source name (used in generated event IDs)."
+    config: Path = typer.Argument(
+        ..., help="Project config path or project name (adds .yaml if omitted)."
     ),
-    category_id: int = typer.Argument(
-        ..., help="Indico category ID to ingest meetings from."
+    category_url: str = typer.Argument(
+        ..., help="Full Indico category URL (for example https://host/category/1234/)."
     ),
-    base_url: str = typer.Option(
-        ..., "--base-url", help="Base URL of the Indico instance."
-    ),
-    config: Path = typer.Option(
-        DEFAULT_CONFIG_PATH, "--config", help="Path to source config file."
+    title: str | None = typer.Option(
+        None,
+        "--title",
+        help="Optional source title. Defaults to the remote category name.",
     ),
     api_key_env: str = typer.Option(
-        "INDICO_API_KEY", "--api-key-env", help="Env var for API key."
+        DEFAULT_API_KEY_ENV,
+        "--api-key-env",
+        help="Env var for API key (used when resolving category title).",
     ),
     api_token_env: str = typer.Option(
-        "INDICO_API_TOKEN", "--api-token-env", help="Env var for API token."
+        DEFAULT_API_TOKEN_ENV,
+        "--api-token-env",
+        help="Env var for API token (used when resolving category title).",
     ),
 ) -> None:
-    """Add or replace a named source in the project config."""
-    current = load_indico_config(config)
-    filtered_sources = [source for source in current.sources if source.name != name]
+    """Add or replace a source in the project config."""
+    config_path = _normalize_config_path(config)
+    base_url, category_id = _parse_category_url(category_url)
+    source_name = title or fetch_category_title(
+        base_url=base_url,
+        category_id=category_id,
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+
+    current = load_indico_config(config_path)
+    filtered_sources = [
+        source for source in current.sources if source.name != source_name
+    ]
     filtered_sources.append(
-        IndicoSource(
-            name=name,
-            category_id=category_id,
-            base_url=base_url,
-            api_key_env=api_key_env,
-            api_token_env=api_token_env,
-        )
+        IndicoSource(name=source_name, category_id=category_id, base_url=base_url)
     )
     save_indico_config(
-        config, IndicoConfig(version=current.version, sources=filtered_sources)
+        config_path,
+        IndicoConfig(version=current.version, sources=filtered_sources),
     )
-    logger.info("Saved source '%s' in %s", name, config)
+    logger.info("Saved source '%s' in %s", source_name, config_path)
 
 
 def list_sources_command(
     config: Path = typer.Option(
-        DEFAULT_CONFIG_PATH, "--config", help="Path to source config file."
+        ..., "--config", help="Path to source config file (required)."
     ),
 ) -> None:
     """List all configured sources."""
-    current = load_indico_config(config)
+    config_path = _normalize_config_path(config)
+    current = load_indico_config(config_path)
     if not current.sources:
         typer.echo("No sources configured.")
         return
 
     for source in sorted(current.sources, key=lambda item: item.name):
         typer.echo(
-            f"{source.name}: category={source.category_id}, base_url={source.base_url}, "
-            f"api_key_env={source.api_key_env}, api_token_env={source.api_token_env}"
+            f"{source.name}: category={source.category_id}, base_url={source.base_url}"
         )
 
 
 def remove_source_command(
     name: str = typer.Argument(..., help="Source name to remove."),
     config: Path = typer.Option(
-        DEFAULT_CONFIG_PATH, "--config", help="Path to source config file."
+        ..., "--config", help="Path to source config file (required)."
     ),
 ) -> None:
     """Remove a source by name."""
-    current = load_indico_config(config)
+    config_path = _normalize_config_path(config)
+    current = load_indico_config(config_path)
     filtered = [source for source in current.sources if source.name != name]
     if len(filtered) == len(current.sources):
         raise typer.BadParameter(f"Source not found: {name}")
 
-    save_indico_config(config, IndicoConfig(version=current.version, sources=filtered))
-    logger.info("Removed source '%s' from %s", name, config)
+    save_indico_config(config_path, IndicoConfig(version=current.version, sources=filtered))
+    logger.info("Removed source '%s' from %s", name, config_path)
 
 
 def generate_sources_command(
     project_yaml: Path = typer.Argument(..., help="Base committee YAML file."),
     config: Path = typer.Option(
-        DEFAULT_CONFIG_PATH, "--config", help="Path to source config file."
+        ..., "--config", help="Path to source config file (required)."
     ),
     source: list[str] = typer.Option(
         None, "--source", help="Specific source(s) to include."
@@ -116,22 +128,35 @@ def generate_sources_command(
     future_weeks: int | None = typer.Option(
         None, "--future-weeks", help="Relative range end."
     ),
+    api_key_env: str = typer.Option(
+        DEFAULT_API_KEY_ENV, "--api-key-env", help="Env var for API key."
+    ),
+    api_token_env: str = typer.Option(
+        DEFAULT_API_TOKEN_ENV, "--api-token-env", help="Env var for API token."
+    ),
     output: Path | None = typer.Option(None, "--output", help="Output YAML path."),
 ) -> None:
     """Generate a new committee YAML with imported Indico meeting events."""
+    config_path = _normalize_config_path(config)
     parsed_from = _parse_iso_date(from_date, option_name="--from")
     parsed_to = _parse_iso_date(to_date, option_name="--to")
     range_start, range_end = _resolve_range(
         parsed_from, parsed_to, past_weeks, future_weeks
     )
-    config_data = load_indico_config(config)
+    config_data = load_indico_config(config_path)
     selected = _select_sources(config_data, source)
     validated = validate_yaml(project_yaml)
     event_styles = validated.history.event_type_styles
 
     generated_events: list[dict[str, object]] = []
     for selected_source in selected:
-        for meeting in fetch_meetings(selected_source, range_start, range_end):
+        for meeting in fetch_meetings(
+            selected_source,
+            range_start,
+            range_end,
+            api_key_env=api_key_env,
+            api_token_env=api_token_env,
+        ):
             event_doc: dict[str, object] = {
                 "id": f"{selected_source.name}-{meeting.remote_id}",
                 "type": "meeting",
@@ -171,6 +196,31 @@ def generate_sources_command(
     logger.info(
         "Generated %s with %s imported meetings", output_path, len(generated_events)
     )
+
+
+def _normalize_config_path(config: Path) -> Path:
+    if config.suffix:
+        return config
+    return config.with_suffix(".yaml")
+
+
+def _parse_category_url(category_url: str) -> tuple[str, int]:
+    parsed = urlparse(category_url)
+    if not parsed.scheme or not parsed.netloc:
+        raise typer.BadParameter(
+            f"Invalid category URL '{category_url}'. Include scheme and host."
+        )
+
+    match = re.search(r"^(?P<prefix>.*?)/category/(?P<id>\d+)(?:/|$)", parsed.path)
+    if not match:
+        raise typer.BadParameter(
+            "Category URL must include '/category/<id>' in the path."
+        )
+
+    prefix = match.group("prefix").rstrip("/")
+    base_url = f"{parsed.scheme}://{parsed.netloc}{prefix}"
+    category_id = int(match.group("id"))
+    return base_url, category_id
 
 
 def _resolve_range(
@@ -218,7 +268,7 @@ def _parse_iso_date(value: str | None, option_name: str) -> date | None:
 def _select_sources(config: IndicoConfig, names: list[str]) -> list[IndicoSource]:
     if not config.sources:
         raise typer.BadParameter(
-            "No sources configured. Run `committee sources add` first."
+            "No sources configured. Run `committee indico add` first."
         )
     if not names:
         return config.sources

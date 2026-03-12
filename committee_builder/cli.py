@@ -67,23 +67,23 @@ app.command("import-md", help="Placeholder for future markdown import workflow."
     import_md_command
 )
 
-sources_app = typer.Typer(
+indico_app = typer.Typer(
     help="Manage Indico category sources and generate imported meetings."
 )
-sources_app.command("add", help="Add an Indico source to the project config.")(
+indico_app.command("add", help="Add an Indico source to the project config.")(
     add_source_command
 )
-sources_app.command("list", help="List configured Indico sources.")(
+indico_app.command("list", help="List configured Indico sources.")(
     list_sources_command
 )
-sources_app.command("remove", help="Remove an Indico source from the config.")(
+indico_app.command("remove", help="Remove an Indico source from the config.")(
     remove_source_command
 )
-sources_app.command("generate", help="Generate meetings YAML from configured sources.")(
+indico_app.command("generate", help="Generate meetings YAML from configured sources.")(
     generate_sources_command
 )
 
-app.add_typer(sources_app, name="sources")
+app.add_typer(indico_app, name="indico")
 
 
 def main() -> None:
