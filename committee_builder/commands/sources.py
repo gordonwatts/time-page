@@ -74,8 +74,8 @@ def add_source_command(
 
 
 def list_sources_command(
-    config: Path = typer.Option(
-        ..., "--config", help="Path to source config file (required)."
+    config: Path = typer.Argument(
+        ..., help="Project config path or project name (adds .yaml if omitted)."
     ),
 ) -> None:
     """List all configured sources."""
@@ -92,10 +92,10 @@ def list_sources_command(
 
 
 def remove_source_command(
-    name: str = typer.Argument(..., help="Source name to remove."),
-    config: Path = typer.Option(
-        ..., "--config", help="Path to source config file (required)."
+    config: Path = typer.Argument(
+        ..., help="Project config path or project name (adds .yaml if omitted)."
     ),
+    name: str = typer.Argument(..., help="Source name to remove."),
 ) -> None:
     """Remove a source by name."""
     config_path = _normalize_config_path(config)
@@ -109,10 +109,10 @@ def remove_source_command(
 
 
 def generate_sources_command(
-    project_yaml: Path = typer.Argument(..., help="Base committee YAML file."),
-    config: Path = typer.Option(
-        ..., "--config", help="Path to source config file (required)."
+    config: Path = typer.Argument(
+        ..., help="Project config path or project name (adds .yaml if omitted)."
     ),
+    project_yaml: Path = typer.Argument(..., help="Base committee YAML file."),
     source: list[str] = typer.Option(
         None, "--source", help="Specific source(s) to include."
     ),

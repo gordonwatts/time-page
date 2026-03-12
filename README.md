@@ -92,9 +92,9 @@ committee build data/committee.history.yaml --output dist/committee-history.html
 - `committee import-csv` (placeholder)
 - `committee import-md` (placeholder)
 - `committee indico add CONFIG CATEGORY_URL [--title TITLE] [--api-key-env ENV] [--api-token-env ENV]`
-- `committee indico list --config PATH`
-- `committee indico remove NAME --config PATH`
-- `committee indico generate PROJECT_YAML --config PATH --from YYYY-MM-DD --to YYYY-MM-DD [--api-key-env ENV] [--api-token-env ENV] [--output PATH]`
+- `committee indico list CONFIG`
+- `committee indico remove CONFIG NAME`
+- `committee indico generate CONFIG PROJECT_YAML --from YYYY-MM-DD --to YYYY-MM-DD [--api-key-env ENV] [--api-token-env ENV] [--output PATH]`
 
 ### Indico source workflow
 
@@ -113,13 +113,13 @@ committee indico add cern https://indico.example.org/category/1234/ --title cern
 Generate meeting events into a new YAML file:
 
 ```bash
-committee indico generate data/committee.history.yaml --config cern --from 2024-01-01 --to 2024-12-31
+committee indico generate cern data/committee.history.yaml --from 2024-01-01 --to 2024-12-31
 ```
 
 You can also generate with a relative range:
 
 ```bash
-committee indico generate data/committee.history.yaml --config cern --past-weeks 3 --future-weeks 1
+committee indico generate cern data/committee.history.yaml --past-weeks 3 --future-weeks 1
 ```
 
 See command help:

@@ -46,16 +46,16 @@ def test_indico_add_list_remove() -> None:
         )
         assert add_result.exit_code == 0
 
-        list_result = runner.invoke(app, ["indico", "list", "--config", str(config)])
+        list_result = runner.invoke(app, ["indico", "list", str(config)])
         assert list_result.exit_code == 0
         assert "cern: category=42" in list_result.stdout
 
         remove_result = runner.invoke(
-            app, ["indico", "remove", "cern", "--config", str(config)]
+            app, ["indico", "remove", str(config), "cern"]
         )
         assert remove_result.exit_code == 0
 
-        empty_result = runner.invoke(app, ["indico", "list", "--config", str(config)])
+        empty_result = runner.invoke(app, ["indico", "list", str(config)])
         assert empty_result.exit_code == 0
         assert "No sources configured." in empty_result.stdout
 
@@ -82,7 +82,7 @@ def test_indico_add_uses_category_title_when_not_provided(
 
         list_result = runner.invoke(
             app,
-            ["indico", "list", "--config", "my-project"],
+            ["indico", "list", "my-project"],
         )
         assert list_result.exit_code == 0
         assert "ATLAS: category=77, base_url=https://indico.example.com/indico" in list_result.stdout
@@ -130,9 +130,8 @@ def test_indico_generate_merges_imported_meetings(
             [
                 "indico",
                 "generate",
-                str(project_path),
-                "--config",
                 str(config_path),
+                str(project_path),
                 "--from",
                 "2024-05-01",
                 "--to",
