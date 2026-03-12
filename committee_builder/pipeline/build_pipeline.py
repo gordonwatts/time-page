@@ -38,7 +38,9 @@ def _load_template_assets() -> tuple[str, str, Environment]:
     return css, js, env
 
 
-def build_html(input_yaml: Path, output_path: Path | None, overwrite: bool = False) -> Path:
+def build_html(
+    input_yaml: Path, output_path: Path | None, overwrite: bool = False
+) -> Path:
     """Build a standalone HTML file from the YAML input."""
     result = validate_yaml(input_yaml)
     history = normalize_history(result.history)

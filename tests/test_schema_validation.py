@@ -5,7 +5,10 @@ from datetime import date
 import pytest
 
 from committee_builder.schema.models import CommitteeHistory
-from committee_builder.schema.validators import SemanticValidationError, validate_semantics
+from committee_builder.schema.validators import (
+    SemanticValidationError,
+    validate_semantics,
+)
 
 
 def _base_doc() -> dict:

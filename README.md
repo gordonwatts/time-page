@@ -91,6 +91,36 @@ committee build data/committee.history.yaml --output dist/committee-history.html
 - `committee init PATH [--force]`
 - `committee import-csv` (placeholder)
 - `committee import-md` (placeholder)
+- `committee indico add CONFIG CATEGORY_URL [--title TITLE] [--api-key-env ENV] [--api-token-env ENV]`
+- `committee indico list CONFIG`
+- `committee indico remove CONFIG NAME`
+- `committee indico generate CONFIG PROJECT_YAML --from YYYY-MM-DD --to YYYY-MM-DD [--api-key-env ENV] [--api-token-env ENV] [--output PATH]`
+
+### Indico source workflow
+
+The Indico commands use the standard HTTP export API. Public categories work without credentials; if API credentials are present they are used automatically.
+
+```bash
+pip install -e .
+```
+
+Configure a source:
+
+```bash
+committee indico add cern https://indico.example.org/category/1234/ --title cern
+```
+
+Generate meeting events into a new YAML file:
+
+```bash
+committee indico generate cern data/committee.history.yaml --from 2024-01-01 --to 2024-12-31
+```
+
+You can also generate with a relative range:
+
+```bash
+committee indico generate cern data/committee.history.yaml --past-weeks 3 --future-weeks 1
+```
 
 See command help:
 
@@ -165,3 +195,4 @@ Math not rendering as expected:
 
 - Use `$...$` for inline and `$$...$$` for block expressions.
 - Ensure backslashes in YAML block strings are escaped where needed.
+
