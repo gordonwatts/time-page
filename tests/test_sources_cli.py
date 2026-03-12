@@ -117,6 +117,7 @@ def test_indico_generate_merges_imported_meetings(
                     title="Weekly Coordination",
                     start_datetime=datetime(2024, 5, 10, 9, 30),
                     description="Imported agenda",
+                    participants=["Jane Doe"],
                     url="https://indico.example.com/event/1001",
                 )
             ]
@@ -181,6 +182,7 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
                         "<p>Agenda:</p>"
                         "<ul><li>Updates</li><li><em>Risks</em></li></ul>"
                     ),
+                    participants=["Jane Doe", "John Roe"],
                     url="https://indico.example.com/event/1001",
                 )
             ]
@@ -212,6 +214,8 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
         assert "Hello **team**." in rendered
         assert "- Updates" in rendered
         assert "- *Risks*" in rendered
+        assert "- Jane Doe" in rendered
+        assert "- John Roe" in rendered
 
 
 def test_resolve_generate_paths_treats_missing_second_arg_as_output(
@@ -309,6 +313,11 @@ def test_normalize_record_supports_cern_indico_start_date_dict() -> None:
             "title": "Weekly Coordination",
             "description": "Imported agenda",
             "url": "https://indico.example.com/event/1001",
+            "chairs": [
+                {
+                    "fullName": "Doe, Jane",
+                }
+            ],
             "startDate": {
                 "date": "2024-05-10",
                 "time": "09:30:00",
@@ -320,6 +329,28 @@ def test_normalize_record_supports_cern_indico_start_date_dict() -> None:
     assert meeting.remote_id == "1001"
     assert meeting.title == "Weekly Coordination"
     assert meeting.start_datetime == datetime(2024, 5, 10, 9, 30)
+    assert meeting.participants == ["Jane Doe"]
+
+
+def test_extract_participants_collects_chairs_and_contribution_speakers() -> None:
+    participants = indico_client_module._extract_participants(
+        {
+            "chairs": [
+                {"fullName": "Plehn, Tilman"},
+            ],
+            "contributions": [
+                {
+                    "title": "Talk",
+                    "speakers": [
+                        {"fullName": "Roe, John"},
+                        {"first_name": "Jane", "last_name": "Doe"},
+                    ],
+                }
+            ],
+        }
+    )
+
+    assert participants == ["Tilman Plehn", "John Roe", "Jane Doe"]
 
 
 def test_indico_client_dummy_without_dependency() -> None:

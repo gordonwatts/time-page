@@ -207,7 +207,7 @@ def generate_sources_command(
                 "important": False,
                 "summary_md": html_to_markdown(meeting.description)
                 or f"Imported from source `{selected_source.name}`.",
-                "participants": [],
+                "participants": meeting.participants,
                 "tags": [selected_source.name],
                 "documents": [],
             }

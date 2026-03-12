@@ -25,6 +25,7 @@ class IndicoMeeting:
     title: str
     start_datetime: datetime
     description: str
+    participants: list[str]
     url: str | None
 
 
@@ -47,7 +48,15 @@ def fetch_meetings(
         api_key_env=api_key_env,
         api_token_env=api_token_env,
     )
-    return [_normalize_record(record) for record in payload.get("results", [])]
+    meetings = [_normalize_record(record) for record in payload.get("results", [])]
+    return [
+        _hydrate_meeting_participants(
+            meeting,
+            api_key_env=api_key_env,
+            api_token_env=api_token_env,
+        )
+        for meeting in meetings
+    ]
 
 
 def fetch_category_title(
@@ -98,6 +107,37 @@ def _fetch_category_export(
     api_token_env: str,
 ) -> dict[str, Any]:
     request_url = f"{base_url.rstrip('/')}/export/categ/{category_id}.json"
+    params = dict(query_params)
+    params["pretty"] = "yes"
+    auth = _build_auth(
+        request_url=request_url,
+        params=params,
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    params.update(auth["params"])
+
+    response = requests.get(
+        request_url,
+        params=params,
+        timeout=30,
+        headers={
+            "User-Agent": "committee-history-builder/0.1",
+            **auth["headers"],
+        },
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _fetch_event_export(
+    base_url: str,
+    event_id: str,
+    query_params: dict[str, str],
+    api_key_env: str,
+    api_token_env: str,
+) -> dict[str, Any]:
+    request_url = f"{base_url.rstrip('/')}/export/event/{event_id}.json"
     params = dict(query_params)
     params["pretty"] = "yes"
     auth = _build_auth(
@@ -234,8 +274,130 @@ def _normalize_record(record: Any) -> IndicoMeeting:
         title=title,
         start_datetime=start_datetime,
         description=description,
+        participants=_extract_participants(record),
         url=str(url_value) if url_value is not None else None,
     )
+
+
+def _hydrate_meeting_participants(
+    meeting: IndicoMeeting,
+    api_key_env: str,
+    api_token_env: str,
+) -> IndicoMeeting:
+    if meeting.url is None:
+        return meeting
+
+    parsed_url = urlsplit(meeting.url)
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    payload = _fetch_event_export(
+        base_url=base_url,
+        event_id=meeting.remote_id,
+        query_params={"detail": "contributions"},
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    results = payload.get("results", [])
+    if not results:
+        return meeting
+
+    participants = _dedupe_names(
+        [*meeting.participants, *_extract_participants(results[0])]
+    )
+    return IndicoMeeting(
+        remote_id=meeting.remote_id,
+        title=meeting.title,
+        start_datetime=meeting.start_datetime,
+        description=meeting.description,
+        participants=participants,
+        url=meeting.url,
+    )
+
+
+def _extract_participants(record: Any) -> list[str]:
+    names = _dedupe_names(_collect_names(record))
+    return names
+
+
+def _collect_names(value: Any, parent_key: str = "") -> list[str]:
+    if isinstance(value, dict):
+        direct_name = _name_from_person_dict(value, parent_key)
+        names = [direct_name] if direct_name else []
+        for key, child in value.items():
+            lowered_key = key.lower()
+            if lowered_key in {
+                "chairs",
+                "contributions",
+                "speakers",
+                "speaker",
+                "presenters",
+                "presenter",
+                "persons",
+                "person",
+                "session",
+                "sessions",
+                "subcontributions",
+                "authors",
+                "primaryauthors",
+                "coauthors",
+            }:
+                names.extend(_collect_names(child, lowered_key))
+        return names
+
+    if isinstance(value, list):
+        names: list[str] = []
+        for item in value:
+            names.extend(_collect_names(item, parent_key))
+        return names
+
+    return []
+
+
+def _name_from_person_dict(value: dict[str, Any], parent_key: str) -> str | None:
+    if parent_key == "contributions" and "title" in value:
+        return None
+
+    for key in ("fullName", "full_name", "name"):
+        raw_name = value.get(key)
+        if isinstance(raw_name, str):
+            normalized = _normalize_name(raw_name)
+            if normalized:
+                return normalized
+
+    first_name = value.get("first_name")
+    last_name = value.get("last_name")
+    if isinstance(first_name, str) and isinstance(last_name, str):
+        normalized = _normalize_name(f"{first_name} {last_name}")
+        if normalized:
+            return normalized
+
+    return None
+
+
+def _normalize_name(value: str) -> str:
+    cleaned = re.sub(r"\s+", " ", value).strip(" ,")
+    if not cleaned:
+        return ""
+
+    if "," in cleaned:
+        pieces = [piece.strip() for piece in cleaned.split(",", maxsplit=1)]
+        if len(pieces) == 2 and all(pieces):
+            cleaned = f"{pieces[1]} {pieces[0]}"
+    return cleaned
+
+
+def _dedupe_names(values: list[str]) -> list[str]:
+    unique_names: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = _normalize_name(value)
+        if not normalized:
+            continue
+        folded = normalized.casefold()
+        if folded in seen:
+            continue
+        seen.add(folded)
+        unique_names.append(normalized)
+    return unique_names
 
 
 def _pick(record: Any, *keys: str, default: Any = ...) -> Any:
