@@ -17,6 +17,7 @@ from committee_builder.indico.config import (
     load_indico_config,
     save_indico_config,
 )
+from committee_builder.indico.markdown import html_to_markdown
 from committee_builder.io.yaml_io import write_yaml
 from committee_builder.pipeline.validate_pipeline import validate_yaml
 
@@ -163,7 +164,7 @@ def generate_sources_command(
                 "title": meeting.title,
                 "date": meeting.start_datetime.date().isoformat(),
                 "important": False,
-                "summary_md": meeting.description
+                "summary_md": html_to_markdown(meeting.description)
                 or f"Imported from source `{selected_source.name}`.",
                 "participants": [],
                 "tags": [selected_source.name],

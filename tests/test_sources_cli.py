@@ -148,6 +148,71 @@ def test_indico_generate_merges_imported_meetings(
         assert "Weekly Coordination" in rendered
 
 
+def test_indico_generate_converts_html_descriptions_to_markdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        project_path = Path("project.yaml")
+        project_path.write_text(BASE_PROJECT, encoding="utf-8")
+
+        config_path = Path("sources")
+        add_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config_path),
+                "https://indico.example.com/category/11/",
+                "--title",
+                "atlas",
+            ],
+        )
+        assert add_result.exit_code == 0
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> list[IndicoMeeting]:
+            return [
+                IndicoMeeting(
+                    remote_id="1001",
+                    title="Weekly Coordination",
+                    start_datetime=datetime(2024, 5, 10, 9, 30),
+                    description=(
+                        "<p>Hello <strong>team</strong>.</p>"
+                        "<p>Agenda:</p>"
+                        "<ul><li>Updates</li><li><em>Risks</em></li></ul>"
+                    ),
+                    url="https://indico.example.com/event/1001",
+                )
+            ]
+
+        monkeypatch.setattr(
+            "committee_builder.commands.sources.fetch_meetings", fake_fetch
+        )
+
+        output_path = Path("generated.yaml")
+        result = runner.invoke(
+            app,
+            [
+                "indico",
+                "generate",
+                str(config_path),
+                str(project_path),
+                "--from",
+                "2024-05-01",
+                "--to",
+                "2024-05-31",
+                "--output",
+                str(output_path),
+            ],
+        )
+        assert result.exit_code == 0
+
+        rendered = output_path.read_text(encoding="utf-8")
+        assert "<p>" not in rendered
+        assert "Hello **team**." in rendered
+        assert "- Updates" in rendered
+        assert "- *Risks*" in rendered
+
+
 def test_indico_add_requires_config() -> None:
     with runner.isolated_filesystem():
         result = runner.invoke(
