@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from committee_builder.cli import app
 from committee_builder.indico.client import IndicoMeeting
 from committee_builder.indico import client as indico_client_module
+from committee_builder.commands.sources import GeneratePaths, _resolve_generate_paths
 
 runner = CliRunner()
 
@@ -211,6 +212,49 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
         assert "Hello **team**." in rendered
         assert "- Updates" in rendered
         assert "- *Risks*" in rendered
+
+
+def test_resolve_generate_paths_treats_missing_second_arg_as_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = Path("atlas.yaml")
+    inferred_project = Path("atlas-project.yaml")
+
+    monkeypatch.setattr(
+        Path,
+        "exists",
+        lambda self: self == inferred_project,
+    )
+
+    resolved = _resolve_generate_paths(
+        config_path=config_path,
+        project_yaml=Path("atlas-generated.yaml"),
+        output_arg=None,
+        output_option=None,
+    )
+
+    assert resolved == GeneratePaths(
+        project_yaml=inferred_project,
+        output_path=Path("atlas-generated.yaml"),
+    )
+
+
+def test_resolve_generate_paths_uses_generated_defaults_without_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "exists", lambda self: False)
+
+    resolved = _resolve_generate_paths(
+        config_path=Path("atlas.yaml"),
+        project_yaml=Path("atlas-generated.yaml"),
+        output_arg=None,
+        output_option=None,
+    )
+
+    assert resolved == GeneratePaths(
+        project_yaml=None,
+        output_path=Path("atlas-generated.yaml"),
+    )
 
 
 def test_indico_add_requires_config() -> None:

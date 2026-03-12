@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
@@ -19,12 +20,30 @@ from committee_builder.indico.config import (
 )
 from committee_builder.indico.markdown import html_to_markdown
 from committee_builder.io.yaml_io import write_yaml
-from committee_builder.pipeline.validate_pipeline import validate_yaml
+from committee_builder.pipeline.validate_pipeline import (
+    PipelineValidationResult,
+    validate_yaml,
+)
+from committee_builder.schema.models import CommitteeHistory
+from committee_builder.schema.validators import validate_semantics
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_API_KEY_ENV = "INDICO_API_KEY"
 DEFAULT_API_TOKEN_ENV = "INDICO_API_TOKEN"
+DEFAULT_EVENT_TYPE_STYLES = {
+    "meeting": {"label": "Meeting", "color": "sky"},
+    "report": {"label": "Report", "color": "emerald"},
+    "decision": {"label": "Decision", "color": "rose"},
+    "milestone": {"label": "Milestone", "color": "amber"},
+    "external": {"label": "External", "color": "violet"},
+}
+
+
+@dataclass(frozen=True)
+class GeneratePaths:
+    project_yaml: Path | None
+    output_path: Path | None
 
 
 def add_source_command(
@@ -113,7 +132,17 @@ def generate_sources_command(
     config: Path = typer.Argument(
         ..., help="Project config path or project name (adds .yaml if omitted)."
     ),
-    project_yaml: Path = typer.Argument(..., help="Base committee YAML file."),
+    project_yaml: Path | None = typer.Argument(
+        None,
+        help=(
+            "Base committee YAML file. Defaults to <config-stem>-project.yaml when "
+            "omitted or when the second positional is used as an output path."
+        ),
+    ),
+    output_path_arg: Path | None = typer.Argument(
+        None,
+        help="Optional output YAML path.",
+    ),
     source: list[str] = typer.Option(
         None, "--source", help="Specific source(s) to include."
     ),
@@ -146,7 +175,19 @@ def generate_sources_command(
     )
     config_data = load_indico_config(config_path)
     selected = _select_sources(config_data, source)
-    validated = validate_yaml(project_yaml)
+    generate_paths = _resolve_generate_paths(
+        config_path=config_path,
+        project_yaml=project_yaml,
+        output_arg=output_path_arg,
+        output_option=output,
+    )
+    validated = _load_history(
+        config_path=config_path,
+        config_data=config_data,
+        project_yaml=generate_paths.project_yaml,
+        range_start=range_start,
+        range_end=range_end,
+    )
     event_styles = validated.history.event_type_styles
 
     generated_events: list[dict[str, object]] = []
@@ -183,7 +224,10 @@ def generate_sources_command(
         str(event["id"]): event for event in existing_events + generated_events
     }
 
-    output_path = output or project_yaml.with_name(f"{project_yaml.stem}-meetings.yaml")
+    output_path = generate_paths.output_path or _default_output_path(
+        config_path=config_path,
+        project_yaml=generate_paths.project_yaml,
+    )
     output_payload = {
         "schema_version": validated.history.schema_version,
         "committee": validated.history.committee.model_dump(mode="json"),
@@ -197,6 +241,71 @@ def generate_sources_command(
     logger.info(
         "Generated %s with %s imported meetings", output_path, len(generated_events)
     )
+
+
+def _resolve_generate_paths(
+    config_path: Path,
+    project_yaml: Path | None,
+    output_arg: Path | None,
+    output_option: Path | None,
+) -> GeneratePaths:
+    inferred_project = config_path.with_name(f"{config_path.stem}-project.yaml")
+
+    if output_option is not None and output_arg is not None:
+        raise typer.BadParameter("Use either positional OUTPUT_YAML or --output, not both.")
+
+    if project_yaml is None:
+        if inferred_project.exists():
+            return GeneratePaths(project_yaml=inferred_project, output_path=output_option)
+        return GeneratePaths(project_yaml=None, output_path=output_option)
+
+    if project_yaml.exists():
+        return GeneratePaths(project_yaml=project_yaml, output_path=output_arg or output_option)
+
+    if inferred_project.exists():
+        return GeneratePaths(project_yaml=inferred_project, output_path=project_yaml)
+
+    if output_arg is not None:
+        raise typer.BadParameter(f"Base committee YAML not found: {project_yaml}")
+
+    return GeneratePaths(project_yaml=None, output_path=project_yaml or output_option)
+
+
+def _load_history(
+    config_path: Path,
+    config_data: IndicoConfig,
+    project_yaml: Path | None,
+    range_start: date,
+    range_end: date,
+) -> PipelineValidationResult:
+    if project_yaml is not None:
+        return validate_yaml(project_yaml)
+
+    committee_name = (
+        config_data.sources[0].name if len(config_data.sources) == 1 else config_path.stem
+    )
+    history = CommitteeHistory.model_validate(
+        {
+            "schema_version": "1.0",
+            "committee": {
+                "name": committee_name,
+                "subtitle": "Imported Indico meetings",
+                "description_md": f"Generated from Indico source config `{config_path.name}`.",
+                "start_date": range_start.isoformat(),
+                "end_date": range_end.isoformat(),
+            },
+            "event_type_styles": DEFAULT_EVENT_TYPE_STYLES,
+            "events": [],
+        }
+    )
+    semantic = validate_semantics(history)
+    return PipelineValidationResult(history=history, warnings=semantic.warnings)
+
+
+def _default_output_path(config_path: Path, project_yaml: Path | None) -> Path:
+    if project_yaml is not None:
+        return project_yaml.with_name(f"{project_yaml.stem}-meetings.yaml")
+    return config_path.with_name(f"{config_path.stem}-generated.yaml")
 
 
 def _normalize_config_path(config: Path) -> Path:
