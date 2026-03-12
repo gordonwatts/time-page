@@ -15,6 +15,7 @@ from urllib.parse import urlencode, urlsplit
 import requests
 
 from committee_builder.indico.config import IndicoSource
+from committee_builder.indico.credentials import normalize_base_url, resolve_stored_api_key
 
 
 @dataclass(frozen=True)
@@ -227,8 +228,15 @@ def _build_auth(
     api_key_env: str,
     api_token_env: str,
 ) -> dict[str, dict[str, str]]:
-    api_key = os.getenv(api_key_env)
-    api_token = os.getenv(api_token_env)
+    base_url = _base_url_from_request_url(request_url)
+    explicit_api_key = os.getenv(api_key_env)
+    explicit_api_token = os.getenv(api_token_env)
+    stored_api_token = None
+    if not explicit_api_key and not explicit_api_token:
+        stored_api_token = resolve_stored_api_key(base_url)
+
+    api_key = explicit_api_key
+    api_token = explicit_api_token or stored_api_token
     if not api_key and not api_token:
         return {"params": {}, "headers": {}}
 
@@ -248,6 +256,18 @@ def _build_auth(
         return {"params": {"ak": api_key}, "headers": {}}
 
     return {"params": {}, "headers": {"Authorization": f"Bearer {api_token}"}}
+
+
+def _base_url_from_request_url(request_url: str) -> str:
+    parsed = urlsplit(request_url)
+    path = parsed.path
+
+    for marker in ("/export/", "/category/", "/event/"):
+        if marker in path:
+            prefix = path.split(marker, 1)[0]
+            return normalize_base_url(f"{parsed.scheme}://{parsed.netloc}{prefix}")
+
+    return normalize_base_url(f"{parsed.scheme}://{parsed.netloc}")
 
 
 def _generate_signature(
@@ -312,7 +332,7 @@ def _hydrate_meeting_participants(
         return meeting
 
     parsed_url = urlsplit(meeting.url)
-    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    base_url = _base_url_from_request_url(meeting.url)
     payload = _fetch_event_export(
         base_url=base_url,
         event_id=meeting.remote_id,

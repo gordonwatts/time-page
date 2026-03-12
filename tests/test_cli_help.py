@@ -29,3 +29,9 @@ def test_indico_generate_help_has_range_options() -> None:
     assert result.exit_code == 0
     assert "--from" in result.stdout
     assert "--past-weeks" in result.stdout
+
+
+def test_indico_help_has_api_key_command() -> None:
+    result = runner.invoke(app, ["indico", "--help"])
+    assert result.exit_code == 0
+    assert "api-key" in result.stdout

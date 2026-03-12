@@ -12,6 +12,7 @@ from committee_builder.cli import app
 from committee_builder.indico.client import IndicoMeeting
 from committee_builder.indico import client as indico_client_module
 from committee_builder.commands.sources import GeneratePaths, _resolve_generate_paths
+from committee_builder.indico.credentials import api_key_env_name
 
 runner = CliRunner()
 
@@ -59,6 +60,60 @@ def test_indico_add_list_remove() -> None:
         empty_result = runner.invoke(app, ["indico", "list", str(config)])
         assert empty_result.exit_code == 0
         assert "No sources configured." in empty_result.stdout
+
+
+def test_indico_api_key_creates_and_updates_local_dotenv() -> None:
+    with runner.isolated_filesystem():
+        base_url = "https://indico.example.com/indico/"
+        env_name = api_key_env_name(base_url)
+
+        first_result = runner.invoke(
+            app, ["indico", "api-key", base_url, "first-key"]
+        )
+        assert first_result.exit_code == 0
+        assert Path(".env").read_text(encoding="utf-8") == f"{env_name}=first-key\n"
+
+        second_result = runner.invoke(
+            app, ["indico", "api-key", "https://indico.example.com/indico", "updated-key"]
+        )
+        assert second_result.exit_code == 0
+        assert Path(".env").read_text(encoding="utf-8") == f"{env_name}=updated-key\n"
+
+
+def test_indico_api_key_preserves_existing_entries() -> None:
+    with runner.isolated_filesystem():
+        Path(".env").write_text(
+            "# existing\nOTHER_VAR=1\n\nUNCHANGED=yes\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["indico", "api-key", "https://indico.example.com", "secret"],
+        )
+        assert result.exit_code == 0
+
+        content = Path(".env").read_text(encoding="utf-8")
+        assert "# existing" in content
+        assert "OTHER_VAR=1" in content
+        assert "UNCHANGED=yes" in content
+        assert f"{api_key_env_name('https://indico.example.com')}=secret" in content
+
+
+def test_indico_api_key_stores_multiple_base_urls() -> None:
+    with runner.isolated_filesystem():
+        first_url = "https://indico.example.com"
+        second_url = "https://indico.example.com/indico"
+
+        first_result = runner.invoke(app, ["indico", "api-key", first_url, "first"])
+        second_result = runner.invoke(app, ["indico", "api-key", second_url, "second"])
+
+        assert first_result.exit_code == 0
+        assert second_result.exit_code == 0
+
+        content = Path(".env").read_text(encoding="utf-8")
+        assert f"{api_key_env_name(first_url)}=first" in content
+        assert f"{api_key_env_name(second_url)}=second" in content
 
 
 def test_indico_add_uses_category_title_when_not_provided(
@@ -277,17 +332,18 @@ def test_indico_add_requires_config() -> None:
 def test_build_auth_falls_back_to_unauthenticated_when_env_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("INDICO_API_KEY", raising=False)
-    monkeypatch.delenv("INDICO_API_TOKEN", raising=False)
+    with runner.isolated_filesystem():
+        monkeypatch.delenv("INDICO_API_KEY", raising=False)
+        monkeypatch.delenv("INDICO_API_TOKEN", raising=False)
 
-    auth = indico_client_module._build_auth(
-        request_url="https://indico.example.com/export/categ/77.json",
-        params={"from": "today"},
-        api_key_env="INDICO_API_KEY",
-        api_token_env="INDICO_API_TOKEN",
-    )
+        auth = indico_client_module._build_auth(
+            request_url="https://indico.example.com/export/categ/77.json",
+            params={"from": "today"},
+            api_key_env="INDICO_API_KEY",
+            api_token_env="INDICO_API_TOKEN",
+        )
 
-    assert auth == {"params": {}, "headers": {}}
+        assert auth == {"params": {}, "headers": {}}
 
 
 def test_build_auth_uses_credentials_when_available(
@@ -308,6 +364,92 @@ def test_build_auth_uses_credentials_when_available(
     assert auth["params"]["timestamp"] == "1234567890"
     assert "signature" in auth["params"]
     assert auth["headers"] == {}
+
+
+def test_build_auth_loads_api_key_from_local_dotenv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        monkeypatch.delenv("INDICO_API_KEY", raising=False)
+        monkeypatch.delenv("INDICO_API_TOKEN", raising=False)
+        Path(".env").write_text(
+            f"{api_key_env_name('https://indico.example.com/indico')}=dotenv-key\n",
+            encoding="utf-8",
+        )
+
+        auth = indico_client_module._build_auth(
+            request_url="https://indico.example.com/indico/export/categ/77.json",
+            params={"from": "today"},
+            api_key_env="INDICO_API_KEY",
+            api_token_env="INDICO_API_TOKEN",
+        )
+
+        assert auth["params"] == {}
+        assert auth["headers"] == {"Authorization": "Bearer dotenv-key"}
+
+
+def test_build_auth_uses_exact_normalized_base_url_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        monkeypatch.delenv("INDICO_API_KEY", raising=False)
+        monkeypatch.delenv("INDICO_API_TOKEN", raising=False)
+        Path(".env").write_text(
+            f"{api_key_env_name('https://indico.example.com')}=host-key\n",
+            encoding="utf-8",
+        )
+
+        auth = indico_client_module._build_auth(
+            request_url="https://indico.example.com/indico/export/categ/77.json",
+            params={"from": "today"},
+            api_key_env="INDICO_API_KEY",
+            api_token_env="INDICO_API_TOKEN",
+        )
+
+        assert auth == {"params": {}, "headers": {}}
+
+
+def test_build_auth_prefers_explicit_env_over_local_dotenv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        monkeypatch.setenv("INDICO_API_KEY", "explicit-key")
+        monkeypatch.delenv("INDICO_API_TOKEN", raising=False)
+        Path(".env").write_text(
+            f"{api_key_env_name('https://indico.example.com')}=dotenv-key\n",
+            encoding="utf-8",
+        )
+
+        auth = indico_client_module._build_auth(
+            request_url="https://indico.example.com/export/categ/77.json",
+            params={"from": "today"},
+            api_key_env="INDICO_API_KEY",
+            api_token_env="INDICO_API_TOKEN",
+        )
+
+        assert auth["params"]["ak"] == "explicit-key"
+
+
+def test_build_auth_prefers_explicit_token_env_over_local_dotenv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        monkeypatch.delenv("INDICO_API_KEY", raising=False)
+        monkeypatch.setenv("INDICO_API_TOKEN", "explicit-token")
+        Path(".env").write_text(
+            f"{api_key_env_name('https://indico.example.com')}=dotenv-key\n",
+            encoding="utf-8",
+        )
+
+        auth = indico_client_module._build_auth(
+            request_url="https://indico.example.com/export/categ/77.json",
+            params={"from": "today"},
+            api_key_env="INDICO_API_KEY",
+            api_token_env="INDICO_API_TOKEN",
+        )
+
+        assert auth["params"] == {}
+        assert auth["headers"] == {"Authorization": "Bearer explicit-token"}
 
 
 def test_normalize_record_supports_cern_indico_start_date_dict() -> None:

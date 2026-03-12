@@ -18,6 +18,7 @@ from committee_builder.indico.config import (
     load_indico_config,
     save_indico_config,
 )
+from committee_builder.indico.credentials import normalize_base_url, store_api_key
 from committee_builder.indico.markdown import html_to_markdown
 from committee_builder.io.yaml_io import write_yaml
 from committee_builder.pipeline.validate_pipeline import (
@@ -109,6 +110,19 @@ def list_sources_command(
         typer.echo(
             f"{source.name}: category={source.category_id}, base_url={source.base_url}"
         )
+
+
+def api_key_command(
+    base_url: str = typer.Argument(..., help="Indico base URL."),
+    key: str = typer.Argument(..., help="API key to store for the base URL."),
+) -> None:
+    """Create or update the local .env file with an Indico API key."""
+    try:
+        normalized_base_url = normalize_base_url(base_url)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    env_path = store_api_key(normalized_base_url, key)
+    logger.info("Stored API key for %s in %s", normalized_base_url, env_path)
 
 
 def remove_source_command(
@@ -331,8 +345,8 @@ def _parse_category_url(category_url: str) -> tuple[str, int]:
             "Category URL must include '/category/<id>' in the path."
         )
 
-    prefix = match.group("prefix").rstrip("/")
-    base_url = f"{parsed.scheme}://{parsed.netloc}{prefix}"
+    prefix = match.group("prefix")
+    base_url = normalize_base_url(f"{parsed.scheme}://{parsed.netloc}{prefix}")
     category_id = int(match.group("id"))
     return base_url, category_id
 

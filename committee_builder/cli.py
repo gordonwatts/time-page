@@ -12,6 +12,7 @@ from committee_builder.commands.import_md import import_md_command
 from committee_builder.commands.init import init_command
 from committee_builder.commands.sources import (
     add_source_command,
+    api_key_command,
     generate_sources_command,
     list_sources_command,
     remove_source_command,
@@ -76,6 +77,16 @@ indico_app.command("add", help="Add an Indico source to the project config.")(
 indico_app.command("list", help="List configured Indico sources.")(
     list_sources_command
 )
+indico_app.command(
+    "api-key",
+    help=(
+        "Store an Indico API key in the local .env file.\n\n"
+        "After logging into Indico, select 'My Profile' from your login dropdown, "
+        "then click the settings button. In the left navigation bar, open "
+        "'API Tokens', create a token, and paste it here. The base URL is the "
+        "site base URL, for example https://indico.cern.ch for CERN."
+    ),
+)(api_key_command)
 indico_app.command("remove", help="Remove an Indico source from the config.")(
     remove_source_command
 )
