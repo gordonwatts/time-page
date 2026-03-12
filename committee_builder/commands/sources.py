@@ -209,10 +209,14 @@ def generate_sources_command(
                 or f"Imported from source `{selected_source.name}`.",
                 "participants": meeting.participants,
                 "tags": [selected_source.name],
-                "documents": [],
+                "documents": [
+                    {"label": label, "url": url} for label, url in meeting.documents
+                ],
             }
             if meeting.url:
-                event_doc["documents"] = [{"label": "Event Link", "url": meeting.url}]
+                event_doc["documents"].append(
+                    {"label": "Event Link", "url": meeting.url}
+                )
             generated_events.append(event_doc)
 
     generated_events.sort(key=lambda item: (str(item["date"]), str(item["id"])))

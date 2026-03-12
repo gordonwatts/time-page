@@ -26,6 +26,7 @@ class IndicoMeeting:
     start_datetime: datetime
     description: str
     participants: list[str]
+    documents: list[tuple[str, str]]
     url: str | None
 
 
@@ -198,6 +199,28 @@ def _fetch_category_page_title(
     return None
 
 
+def _fetch_event_page(
+    event_url: str, api_key_env: str, api_token_env: str
+) -> str:
+    auth = _build_auth(
+        request_url=event_url,
+        params={},
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    response = requests.get(
+        event_url,
+        params=auth["params"],
+        timeout=30,
+        headers={
+            "User-Agent": "committee-history-builder/0.1",
+            **auth["headers"],
+        },
+    )
+    response.raise_for_status()
+    return response.text
+
+
 def _build_auth(
     request_url: str,
     params: dict[str, str],
@@ -275,6 +298,7 @@ def _normalize_record(record: Any) -> IndicoMeeting:
         start_datetime=start_datetime,
         description=description,
         participants=_extract_participants(record),
+        documents=[],
         url=str(url_value) if url_value is not None else None,
     )
 
@@ -303,12 +327,21 @@ def _hydrate_meeting_participants(
     participants = _dedupe_names(
         [*meeting.participants, *_extract_participants(results[0])]
     )
+    documents = _extract_documents(
+        _fetch_event_page(
+            meeting.url,
+            api_key_env=api_key_env,
+            api_token_env=api_token_env,
+        ),
+        base_url=base_url,
+    )
     return IndicoMeeting(
         remote_id=meeting.remote_id,
         title=meeting.title,
         start_datetime=meeting.start_datetime,
         description=meeting.description,
         participants=participants,
+        documents=documents,
         url=meeting.url,
     )
 
@@ -398,6 +431,24 @@ def _dedupe_names(values: list[str]) -> list[str]:
         seen.add(folded)
         unique_names.append(normalized)
     return unique_names
+
+
+def _extract_documents(event_html: str, base_url: str) -> list[tuple[str, str]]:
+    matches = re.findall(
+        r'<a[^>]+class="[^"]*\battachment\b[^"]*"[^>]+href="([^"]+)"[^>]*title="([^"]+)"',
+        event_html,
+        flags=re.IGNORECASE,
+    )
+    documents: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for href, title in matches:
+        absolute_url = href if href.startswith("http") else f"{base_url}{href}"
+        folded = absolute_url.casefold()
+        if folded in seen:
+            continue
+        seen.add(folded)
+        documents.append((title.strip(), absolute_url))
+    return documents
 
 
 def _pick(record: Any, *keys: str, default: Any = ...) -> Any:

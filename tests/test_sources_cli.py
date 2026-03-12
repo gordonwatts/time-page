@@ -118,6 +118,7 @@ def test_indico_generate_merges_imported_meetings(
                     start_datetime=datetime(2024, 5, 10, 9, 30),
                     description="Imported agenda",
                     participants=["Jane Doe"],
+                    documents=[("slides.pdf", "https://indico.example.com/files/slides.pdf")],
                     url="https://indico.example.com/event/1001",
                 )
             ]
@@ -148,6 +149,8 @@ def test_indico_generate_merges_imported_meetings(
         rendered = output_path.read_text(encoding="utf-8")
         assert "atlas-1001" in rendered
         assert "Weekly Coordination" in rendered
+        assert "slides.pdf" in rendered
+        assert "https://indico.example.com/files/slides.pdf" in rendered
 
 
 def test_indico_generate_converts_html_descriptions_to_markdown(
@@ -183,6 +186,7 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
                         "<ul><li>Updates</li><li><em>Risks</em></li></ul>"
                     ),
                     participants=["Jane Doe", "John Roe"],
+                    documents=[("slides.pdf", "https://indico.example.com/files/slides.pdf")],
                     url="https://indico.example.com/event/1001",
                 )
             ]
@@ -351,6 +355,33 @@ def test_extract_participants_collects_chairs_and_contribution_speakers() -> Non
     )
 
     assert participants == ["Tilman Plehn", "John Roe", "Jane Doe"]
+
+
+def test_extract_documents_collects_attachment_links() -> None:
+    documents = indico_client_module._extract_documents(
+        """
+        <div class="material-list">
+          <a class="attachment icon-file-pdf i-button"
+             href="/event/1638970/attachments/3236500/5771268/cern_26.pdf"
+             title="cern_26.pdf">cern_26.pdf</a>
+          <a class="attachment icon-link i-button"
+             href="https://videos.cern.ch/record/3021230"
+             title="Recording">Recording</a>
+        </div>
+        """,
+        base_url="https://indico.cern.ch",
+    )
+
+    assert documents == [
+        (
+            "cern_26.pdf",
+            "https://indico.cern.ch/event/1638970/attachments/3236500/5771268/cern_26.pdf",
+        ),
+        (
+            "Recording",
+            "https://videos.cern.ch/record/3021230",
+        ),
+    ]
 
 
 def test_indico_client_dummy_without_dependency() -> None:
