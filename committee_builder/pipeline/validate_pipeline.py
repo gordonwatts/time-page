@@ -9,7 +9,10 @@ from pydantic import ValidationError
 
 from committee_builder.io.yaml_io import read_yaml
 from committee_builder.schema.models import CommitteeHistory
-from committee_builder.schema.validators import SemanticValidationError, validate_semantics
+from committee_builder.schema.validators import (
+    SemanticValidationError,
+    validate_semantics,
+)
 
 
 @dataclass

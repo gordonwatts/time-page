@@ -128,3 +128,7 @@ dmypy.json
 *.swp
 *.swo
 *~
+
+atlas*.yaml
+atlas*.html
+.tmp/*

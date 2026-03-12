@@ -31,4 +31,8 @@ def validate_command(
     for warning in result.warnings:
         logger.warning("%s", warning)
 
-    logger.info("Validation successful for %s (%d event(s))", input_yaml, len(result.history.events))
+    logger.info(
+        "Validation successful for %s (%d event(s))",
+        input_yaml,
+        len(result.history.events),
+    )
