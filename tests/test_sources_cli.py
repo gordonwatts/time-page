@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from committee_builder.cli import app
 from committee_builder.indico.client import IndicoMeeting
+from committee_builder.indico import client as indico_client_module
 
 runner = CliRunner()
 
@@ -157,8 +158,64 @@ def test_indico_add_requires_config() -> None:
         assert result.exit_code == 2
 
 
+def test_build_auth_falls_back_to_unauthenticated_when_env_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("INDICO_API_KEY", raising=False)
+    monkeypatch.delenv("INDICO_API_TOKEN", raising=False)
+
+    auth = indico_client_module._build_auth(
+        request_url="https://indico.example.com/export/categ/77.json",
+        params={"from": "today"},
+        api_key_env="INDICO_API_KEY",
+        api_token_env="INDICO_API_TOKEN",
+    )
+
+    assert auth == {"params": {}, "headers": {}}
+
+
+def test_build_auth_uses_credentials_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("INDICO_API_KEY", "key")
+    monkeypatch.setenv("INDICO_API_TOKEN", "token")
+    monkeypatch.setattr(indico_client_module.time, "time", lambda: 1234567890)
+
+    auth = indico_client_module._build_auth(
+        request_url="https://indico.example.com/export/categ/77.json",
+        params={"from": "today"},
+        api_key_env="INDICO_API_KEY",
+        api_token_env="INDICO_API_TOKEN",
+    )
+
+    assert auth["params"]["ak"] == "key"
+    assert auth["params"]["timestamp"] == "1234567890"
+    assert "signature" in auth["params"]
+    assert auth["headers"] == {}
+
+
+def test_normalize_record_supports_cern_indico_start_date_dict() -> None:
+    meeting = indico_client_module._normalize_record(
+        {
+            "id": "1001",
+            "title": "Weekly Coordination",
+            "description": "Imported agenda",
+            "url": "https://indico.example.com/event/1001",
+            "startDate": {
+                "date": "2024-05-10",
+                "time": "09:30:00",
+                "tz": "Europe/Zurich",
+            },
+        }
+    )
+
+    assert meeting.remote_id == "1001"
+    assert meeting.title == "Weekly Coordination"
+    assert meeting.start_datetime == datetime(2024, 5, 10, 9, 30)
+
+
 def test_indico_client_dummy_without_dependency() -> None:
     """Dummy test to ensure environments without indico-client still pass test suite."""
-    pytest.importorskip("indico_client")
+    pytest.importorskip("indico")
 
 

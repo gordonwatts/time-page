@@ -98,10 +98,10 @@ committee build data/committee.history.yaml --output dist/committee-history.html
 
 ### Indico source workflow
 
-Install the official client dependency:
+The Indico commands use the standard HTTP export API. Public categories work without credentials; if API credentials are present they are used automatically.
 
 ```bash
-pip install indico-client
+pip install -e .
 ```
 
 Configure a source:

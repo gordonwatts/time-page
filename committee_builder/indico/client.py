@@ -1,11 +1,18 @@
-"""Thin Indico client integration layer."""
+"""Thin CERN Indico HTTP export integration layer."""
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import os
+import re
+import time
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
+from urllib.parse import urlencode, urlsplit
+
+import requests
 
 from committee_builder.indico.config import IndicoSource
 
@@ -29,13 +36,18 @@ def fetch_meetings(
     api_token_env: str = "INDICO_API_TOKEN",
 ) -> list[IndicoMeeting]:
     """Fetch meetings for a source and normalize payloads."""
-    client = _build_client(
+    payload = _fetch_category_export(
         base_url=source.base_url,
+        category_id=source.category_id,
+        query_params={
+            "from": start_date.isoformat(),
+            "to": end_date.isoformat(),
+            "detail": "events",
+        },
         api_key_env=api_key_env,
         api_token_env=api_token_env,
     )
-    raw_records = _query_records(client, source.category_id, start_date, end_date)
-    return [_normalize_record(record) for record in raw_records]
+    return [_normalize_record(record) for record in payload.get("results", [])]
 
 
 def fetch_category_title(
@@ -45,117 +57,148 @@ def fetch_category_title(
     api_token_env: str = "INDICO_API_TOKEN",
 ) -> str:
     """Resolve a category title from Indico."""
-    client = _build_client(
+    payload = _fetch_category_export(
         base_url=base_url,
+        category_id=category_id,
+        query_params={"from": "today", "to": "365d"},
         api_key_env=api_key_env,
         api_token_env=api_token_env,
     )
-    raw_category = _query_category(client, category_id)
-    category_title = str(_pick(raw_category, "title", "name", default="")).strip()
-    if not category_title:
-        raise RuntimeError(f"No title returned for category {category_id}.")
-    return category_title
+
+    category_paths = payload.get("additionalInfo", {}).get("eventCategories", [])
+    for path_entry in category_paths:
+        for category in path_entry.get("path", []):
+            if str(category.get("id")) == str(category_id):
+                category_title = str(category.get("name", "")).strip()
+                if category_title:
+                    return category_title
+
+    for record in payload.get("results", []):
+        category_title = str(record.get("category", "")).strip()
+        if category_title:
+            return category_title
+
+    category_page_title = _fetch_category_page_title(
+        base_url=base_url,
+        category_id=category_id,
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    if category_page_title:
+        return category_page_title
+
+    raise RuntimeError(f"No title returned for category {category_id}.")
 
 
-def _build_client(base_url: str, api_key_env: str, api_token_env: str) -> Any:
+def _fetch_category_export(
+    base_url: str,
+    category_id: int,
+    query_params: dict[str, str],
+    api_key_env: str,
+    api_token_env: str,
+) -> dict[str, Any]:
+    request_url = f"{base_url.rstrip('/')}/export/categ/{category_id}.json"
+    params = dict(query_params)
+    params["pretty"] = "yes"
+    auth = _build_auth(
+        request_url=request_url,
+        params=params,
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    params.update(auth["params"])
+
+    response = requests.get(
+        request_url,
+        params=params,
+        timeout=30,
+        headers={
+            "User-Agent": "committee-history-builder/0.1",
+            **auth["headers"],
+        },
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _fetch_category_page_title(
+    base_url: str, category_id: int, api_key_env: str, api_token_env: str
+) -> str | None:
+    request_url = f"{base_url.rstrip('/')}/category/{category_id}/"
+    auth = _build_auth(
+        request_url=request_url,
+        params={},
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    response = requests.get(
+        request_url,
+        params=auth["params"],
+        timeout=30,
+        headers={
+            "User-Agent": "committee-history-builder/0.1",
+            **auth["headers"],
+        },
+    )
+    response.raise_for_status()
+
+    h1_match = re.search(
+        r'<h1 class="category-title">\s*(?:<[^>]+>\s*)*(.*?)\s*(?:</[^>]+>\s*)*</h1>',
+        response.text,
+        re.DOTALL,
+    )
+    if h1_match:
+        title = re.sub(r"<[^>]+>", "", h1_match.group(1)).strip()
+        if title:
+            return title
+
+    title_match = re.search(r"<title>(.*?) · Indico</title>", response.text, re.DOTALL)
+    if title_match:
+        return title_match.group(1).strip()
+    return None
+
+
+def _build_auth(
+    request_url: str,
+    params: dict[str, str],
+    api_key_env: str,
+    api_token_env: str,
+) -> dict[str, dict[str, str]]:
     api_key = os.getenv(api_key_env)
     api_token = os.getenv(api_token_env)
-    if not api_key or not api_token:
-        raise ValueError(
-            f"Missing Indico credentials in env vars: {api_key_env}, {api_token_env}"
+    if not api_key and not api_token:
+        return {"params": {}, "headers": {}}
+
+    if api_key and api_token:
+        timestamp = str(int(time.time()))
+        signed_params = dict(params)
+        signed_params["ak"] = api_key
+        signed_params["timestamp"] = timestamp
+        signed_params["signature"] = _generate_signature(
+            request_url=request_url,
+            params=signed_params,
+            secret_key=api_token,
         )
+        return {"params": signed_params, "headers": {}}
 
-    try:
-        from indico_client.client import IndicoClient  # type: ignore[import-not-found]
-    except ImportError as exc:  # pragma: no cover - tested via CLI behavior
-        raise RuntimeError(
-            "indico-client is required for meeting generation. Install it to use this command."
-        ) from exc
+    if api_key:
+        return {"params": {"ak": api_key}, "headers": {}}
 
-    return IndicoClient(base_url=base_url, api_key=api_key, api_token=api_token)
+    return {"params": {}, "headers": {"Authorization": f"Bearer {api_token}"}}
 
 
-def _query_records(
-    client: Any, category_id: int, start_date: date, end_date: date
-) -> list[Any]:
-    """Attempt known query entry points supported by different client versions."""
-    if hasattr(client, "list_events") and callable(client.list_events):
-        return list(
-            _try_call(
-                client.list_events,
-                attempts=[
-                    {
-                        "category_id": category_id,
-                        "start_date": start_date,
-                        "end_date": end_date,
-                    },
-                    {"category": category_id, "start_date": start_date, "end_date": end_date},
-                ],
-            )
-        )
-
-    if (
-        hasattr(client, "events")
-        and hasattr(client.events, "list")
-        and callable(client.events.list)
-    ):
-        return list(
-            _try_call(
-                client.events.list,
-                attempts=[
-                    {
-                        "category_id": category_id,
-                        "start_date": start_date,
-                        "end_date": end_date,
-                    },
-                    {"category": category_id, "start_date": start_date, "end_date": end_date},
-                ],
-            )
-        )
-
-    raise RuntimeError("Unsupported indico-client API shape for fetching events.")
-
-
-def _query_category(client: Any, category_id: int) -> Any:
-    if hasattr(client, "get_category") and callable(client.get_category):
-        return _try_call(
-            client.get_category,
-            attempts=[
-                {"category_id": category_id},
-                {"id": category_id},
-                (category_id,),
-            ],
-        )
-
-    if (
-        hasattr(client, "categories")
-        and hasattr(client.categories, "get")
-        and callable(client.categories.get)
-    ):
-        return _try_call(
-            client.categories.get,
-            attempts=[
-                {"category_id": category_id},
-                {"id": category_id},
-                (category_id,),
-            ],
-        )
-
-    raise RuntimeError("Unsupported indico-client API shape for fetching categories.")
-
-
-def _try_call(function: Any, attempts: list[Any]) -> Any:
-    last_type_error: TypeError | None = None
-    for attempt in attempts:
-        try:
-            if isinstance(attempt, tuple):
-                return function(*attempt)
-            return function(**attempt)
-        except TypeError as exc:
-            last_type_error = exc
-    if last_type_error:
-        raise RuntimeError("Unsupported indico-client method signature.") from last_type_error
-    raise RuntimeError("No compatible call signature found.")
+def _generate_signature(
+    request_url: str, params: dict[str, str], secret_key: str
+) -> str:
+    canonical_query = urlencode(sorted(params.items()))
+    parsed = urlsplit(request_url)
+    string_to_sign = f"{parsed.path}?{canonical_query}"
+    digest = hmac.new(
+        secret_key.encode("utf-8"),
+        string_to_sign.encode("utf-8"),
+        hashlib.sha1,
+    ).hexdigest()
+    return digest
 
 
 def _normalize_record(record: Any) -> IndicoMeeting:
@@ -166,7 +209,18 @@ def _normalize_record(record: Any) -> IndicoMeeting:
     url_value = _pick(record, "url", "event_url", default=None)
     start_value = _pick(record, "start_dt", "start_datetime", "start", "startDate")
 
-    if isinstance(start_value, date) and not isinstance(start_value, datetime):
+    if isinstance(start_value, dict):
+        date_value = start_value.get("date")
+        time_value = start_value.get("time", "00:00:00")
+        timezone_value = start_value.get("tz")
+        if date_value is None:
+            raise ValueError(f"Unsupported event start datetime value: {start_value!r}")
+        iso_value = f"{date_value}T{time_value}"
+        start_datetime = datetime.fromisoformat(iso_value)
+        if timezone_value:
+            # Keep timezone name available in ISO-like form without introducing extra deps.
+            start_datetime = datetime.fromisoformat(iso_value)
+    elif isinstance(start_value, date) and not isinstance(start_value, datetime):
         start_datetime = datetime.combine(start_value, datetime.min.time())
     elif isinstance(start_value, datetime):
         start_datetime = start_value
