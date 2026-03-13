@@ -9,9 +9,17 @@ import pytest
 from typer.testing import CliRunner
 
 from committee_builder.cli import app
-from committee_builder.indico.client import IndicoMeeting
+from committee_builder.indico.client import (
+    IndicoContribution,
+    IndicoDocument,
+    IndicoMeeting,
+)
 from committee_builder.indico import client as indico_client_module
-from committee_builder.commands.sources import GeneratePaths, _resolve_generate_paths
+from committee_builder.commands.sources import (
+    GeneratePaths,
+    _resolve_generate_paths,
+    _short_contribution_title,
+)
 from committee_builder.indico.credentials import api_key_env_name
 
 runner = CliRunner()
@@ -173,7 +181,24 @@ def test_indico_generate_merges_imported_meetings(
                     start_datetime=datetime(2024, 5, 10, 9, 30),
                     description="Imported agenda",
                     participants=["Jane Doe"],
-                    documents=[("slides.pdf", "https://indico.example.com/files/slides.pdf")],
+                    documents=[
+                        IndicoDocument(
+                            label="slides.pdf",
+                            url="https://indico.example.com/files/slides.pdf",
+                        )
+                    ],
+                    contributions=[
+                        IndicoContribution(
+                            title="Weekly Coordination",
+                            speaker_names=["Jane Doe"],
+                            documents=[
+                                IndicoDocument(
+                                    label="slides.pdf",
+                                    url="https://indico.example.com/files/slides.pdf",
+                                )
+                            ],
+                        )
+                    ],
                     url="https://indico.example.com/event/1001",
                 )
             ]
@@ -204,8 +229,10 @@ def test_indico_generate_merges_imported_meetings(
         rendered = output_path.read_text(encoding="utf-8")
         assert "atlas-1001" in rendered
         assert "Weekly Coordination" in rendered
+        assert "[Link To Indico](https://indico.example.com/event/1001)" in rendered
         assert "slides.pdf" in rendered
         assert "https://indico.example.com/files/slides.pdf" in rendered
+        assert "Event Link" not in rendered
 
 
 def test_indico_generate_converts_html_descriptions_to_markdown(
@@ -241,7 +268,24 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
                         "<ul><li>Updates</li><li><em>Risks</em></li></ul>"
                     ),
                     participants=["Jane Doe", "John Roe"],
-                    documents=[("slides.pdf", "https://indico.example.com/files/slides.pdf")],
+                    documents=[
+                        IndicoDocument(
+                            label="slides.pdf",
+                            url="https://indico.example.com/files/slides.pdf",
+                        )
+                    ],
+                    contributions=[
+                        IndicoContribution(
+                            title="Weekly Coordination",
+                            speaker_names=["Jane Doe", "John Roe"],
+                            documents=[
+                                IndicoDocument(
+                                    label="slides.pdf",
+                                    url="https://indico.example.com/files/slides.pdf",
+                                )
+                            ],
+                        )
+                    ],
                     url="https://indico.example.com/event/1001",
                 )
             ]
@@ -271,8 +315,12 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
         rendered = output_path.read_text(encoding="utf-8")
         assert "<p>" not in rendered
         assert "Hello **team**." in rendered
+        assert "[Link To Indico](https://indico.example.com/event/1001)" in rendered
         assert "- Updates" in rendered
         assert "- *Risks*" in rendered
+        assert "| Talk | Authors | Documents |" in rendered
+        assert "slides" in rendered
+        assert "• [slides.pdf](https://indico.example.com/files/slides.pdf)" in rendered
         assert "- Jane Doe" in rendered
         assert "- John Roe" in rendered
 
@@ -515,15 +563,152 @@ def test_extract_documents_collects_attachment_links() -> None:
     )
 
     assert documents == [
-        (
-            "cern_26.pdf",
-            "https://indico.cern.ch/event/1638970/attachments/3236500/5771268/cern_26.pdf",
+        IndicoDocument(
+            label="cern_26.pdf",
+            url="https://indico.cern.ch/event/1638970/attachments/3236500/5771268/cern_26.pdf",
         ),
-        (
-            "Recording",
-            "https://videos.cern.ch/record/3021230",
+        IndicoDocument(
+            label="Recording",
+            url="https://videos.cern.ch/record/3021230",
         ),
     ]
+
+
+def test_extract_contribution_documents_keeps_talk_context() -> None:
+    documents = indico_client_module._extract_contribution_documents(
+        {
+            "contributions": [
+                {
+                    "title": "Calibration update",
+                    "speakers": [{"fullName": "Doe, Jane"}],
+                    "attachments": [
+                        {
+                            "filename": "calibration.pdf",
+                            "download_url": "/event/1001/attachments/1/2/calibration.pdf",
+                        }
+                    ],
+                }
+            ]
+        },
+        base_url="https://indico.cern.ch",
+    )
+
+    assert documents == [
+        IndicoDocument(
+            label="calibration.pdf",
+            url="https://indico.cern.ch/event/1001/attachments/1/2/calibration.pdf",
+            talk_title="Calibration update",
+            speaker_names=["Jane Doe"],
+        )
+    ]
+
+
+def test_extract_contribution_documents_sorts_by_contribution_order() -> None:
+    documents = indico_client_module._extract_contribution_documents(
+        {
+            "contributions": [
+                {
+                    "id": "200",
+                    "title": "Second talk",
+                    "speakers": [{"fullName": "Roe, John"}],
+                    "attachments": [
+                        {
+                            "filename": "second.pdf",
+                            "download_url": "/event/1001/attachments/1/2/second.pdf",
+                        }
+                    ],
+                },
+                {
+                    "id": "100",
+                    "title": "Introduction",
+                    "speakers": [{"fullName": "Doe, Jane"}],
+                    "attachments": [
+                        {
+                            "filename": "intro.pdf",
+                            "download_url": "/event/1001/attachments/1/2/intro.pdf",
+                        }
+                    ],
+                },
+            ]
+        },
+        base_url="https://indico.cern.ch",
+    )
+
+    assert [document.talk_title for document in documents] == [
+        "Introduction",
+        "Second talk",
+    ]
+
+
+def test_extract_contributions_keeps_talk_rows_without_documents() -> None:
+    contributions = indico_client_module._extract_contributions(
+        {
+            "contributions": [
+                {
+                    "id": "100",
+                    "title": "Introduction",
+                    "speakers": [{"fullName": "Doe, Jane"}],
+                }
+            ]
+        },
+        base_url="https://indico.cern.ch",
+    )
+
+    assert contributions == [
+        indico_client_module.IndicoContribution(
+            title="Introduction",
+            speaker_names=["Jane Doe"],
+            documents=[],
+            sort_key=(0, 0),
+        )
+    ]
+
+
+def test_merge_documents_prefers_contextual_entry_for_same_label() -> None:
+    merged = indico_client_module._merge_documents(
+        [
+            IndicoDocument(
+                label="ATLTOPDPD-1463",
+                url="https://indico.cern.ch/event/1661706/contributions/6985305/attachments/3234887/5767988/go",
+                talk_title="Parton level information in PHYS",
+                speaker_names=["Davide Melini"],
+                sort_key=(0, 1, 0),
+            )
+        ],
+        [
+            IndicoDocument(
+                label="ATLTOPDPD-1463",
+                url="https://its.cern.ch/jira/browse/ATLTOPDPD-1463",
+                talk_title=None,
+                speaker_names=[],
+            )
+        ],
+    )
+
+    assert merged == [
+        IndicoDocument(
+            label="ATLTOPDPD-1463",
+            url="https://its.cern.ch/jira/browse/ATLTOPDPD-1463",
+            talk_title="Parton level information in PHYS",
+            speaker_names=["Davide Melini"],
+            sort_key=(0, 1, 0),
+        )
+    ]
+
+
+def test_short_contribution_title_uses_cleaned_filename() -> None:
+    contribution = IndicoContribution(
+        title="Lossy compression for FTAG branches",
+        speaker_names=["Romain Bouquet"],
+        documents=[
+            IndicoDocument(
+                label="AMGMeeting_LossyCompressionStudiesInFTAG_20260227_RomainBouquet-1.pdf",
+                url="https://example.org/slides.pdf",
+            )
+        ],
+    )
+
+    assert _short_contribution_title(contribution) == "Lossy Compression Studies In FTAG"
 
 
 def test_indico_client_dummy_without_dependency() -> None:

@@ -12,3 +12,16 @@ def test_markdown_and_math_render() -> None:
 def test_raw_html_is_not_rendered() -> None:
     html = render_markdown("<script>alert('x')</script>")
     assert "<script>" not in html
+
+
+def test_markdown_tables_render() -> None:
+    html = render_markdown(
+        "| Talk | Authors |\n| --- | --- |\n| Introduction | Jane Doe |"
+    )
+    assert "<table>" in html
+    assert "<td>Introduction</td>" in html
+
+
+def test_markdown_allows_br_tags_in_generated_content() -> None:
+    html = render_markdown("| Documents |\n| --- |\n| one<br>two |")
+    assert "one<br>two" in html

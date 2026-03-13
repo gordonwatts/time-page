@@ -56,6 +56,84 @@
       .replaceAll("'", "&#039;");
   }
 
+  function renderDoc(doc) {
+    return doc.url
+      ? `<a href="${esc(doc.url)}" target="_blank" rel="noopener noreferrer">${esc(doc.label)}</a>`
+      : esc(doc.label);
+  }
+
+  function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function looksLikeIdentifierTitle(value) {
+    const normalized = String(value).replace(/\s+/g, " ").trim();
+    if (!normalized) return true;
+    if (/^[A-Z0-9!._/-]+$/.test(normalized)) return true;
+    const letters = (normalized.match(/[A-Za-z]/g) || []).length;
+    const words = normalized.split(/\s+/).filter(Boolean);
+    return words.length === 1 && letters <= 8;
+  }
+
+  function shortTalkTitle(group) {
+    const source = group.docs?.[0]?.label || group.talkTitle || "";
+    let value = String(source).replace(/\.[^.]+$/, "");
+    value = value.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+    value = value.replace(/[_-]+/g, " ");
+    value = value.replace(/\b\d{6,8}\b/g, " ");
+    value = value.replace(/\b(?:amgmeeting|amg)\b/gi, " ");
+    value = value.replace(/\bcopy\b/gi, " ");
+    value = value.replace(/\b\d+\b\s*$/g, " ");
+    for (const speaker of group.speakers || []) {
+      const pattern = new RegExp(`\\b${escapeRegExp(speaker)}\\b\\s*$`, "i");
+      value = value.replace(pattern, "").trim();
+    }
+    value = value.replace(/\s+/g, " ").trim();
+    if (looksLikeIdentifierTitle(value)) {
+      return group.talkTitle || value || source || "Untitled talk";
+    }
+    return value || group.talkTitle || source || "Untitled talk";
+  }
+
+  function groupDocuments(documents) {
+    const groups = [];
+    const lookup = new Map();
+    for (const doc of documents || []) {
+      if (!doc.talk_title && !(doc.speaker_names || []).length) {
+        groups.push({ kind: "single", doc });
+        continue;
+      }
+      const speakers = doc.speaker_names || [];
+      const key = `${doc.talk_title || ""}::${speakers.join("|")}`;
+      if (!lookup.has(key)) {
+        const group = { kind: "talk", talkTitle: doc.talk_title || "", speakers, docs: [] };
+        lookup.set(key, group);
+        groups.push(group);
+      }
+      lookup.get(key).docs.push(doc);
+    }
+    return groups;
+  }
+
+  function renderDocumentGroups(documents) {
+    return groupDocuments(documents).map((group) => {
+      if (group.kind === "single") {
+        return `<li>${renderDoc(group.doc)}</li>`;
+      }
+      const speakerLine = group.speakers.length ? `<span class="muted-text">${esc(group.speakers.join(", "))}</span>` : "";
+      const files = group.docs.map((doc) => `<li>${renderDoc(doc)}</li>`).join("");
+      return `
+        <li class="document-item">
+          <div class="document-meta">
+            <strong>${esc(shortTalkTitle(group))}</strong>
+            ${speakerLine}
+          </div>
+          <ul class="document-sublist">${files}</ul>
+        </li>
+      `;
+    }).join("");
+  }
+
   function render() {
     const events = (data.events || []).filter((e) => eventMatches(e, state.query));
     const selected = events.find((e) => e.id === state.selectedId) || events[0] || data.events?.[0];
@@ -96,9 +174,7 @@
     }
 
     const selectedStyle = getStyle(selected.type);
-    const docs = (selected.documents || []).map((doc) => doc.url
-      ? `<li><a href="${esc(doc.url)}" target="_blank" rel="noopener noreferrer">${esc(doc.label)}</a></li>`
-      : `<li>${esc(doc.label)}</li>`).join("");
+    const docs = renderDocumentGroups(selected.documents || []);
     const participants = (selected.participants || []).map((p) => `<span class="chip">${esc(p)}</span>`).join("");
     const tags = (selected.tags || []).map((t) => `<span class="chip muted">${esc(t)}</span>`).join("");
 

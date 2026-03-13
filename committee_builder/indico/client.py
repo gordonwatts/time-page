@@ -7,7 +7,7 @@ import hmac
 import os
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 from urllib.parse import urlencode, urlsplit
@@ -19,6 +19,27 @@ from committee_builder.indico.credentials import normalize_base_url, resolve_sto
 
 
 @dataclass(frozen=True)
+class IndicoDocument:
+    """Normalized document reference associated with an event or contribution."""
+
+    label: str
+    url: str
+    talk_title: str | None = None
+    speaker_names: list[str] = field(default_factory=list)
+    sort_key: tuple[int, ...] = field(default_factory=lambda: (1, 0, 0), repr=False)
+
+
+@dataclass(frozen=True)
+class IndicoContribution:
+    """Normalized contribution details for a meeting agenda entry."""
+
+    title: str
+    speaker_names: list[str] = field(default_factory=list)
+    documents: list[IndicoDocument] = field(default_factory=list)
+    sort_key: tuple[int, ...] = field(default_factory=lambda: (2, 0), repr=False)
+
+
+@dataclass(frozen=True)
 class IndicoMeeting:
     """Normalized meeting record fetched from Indico."""
 
@@ -27,8 +48,9 @@ class IndicoMeeting:
     start_datetime: datetime
     description: str
     participants: list[str]
-    documents: list[tuple[str, str]]
+    documents: list[IndicoDocument]
     url: str | None
+    contributions: list[IndicoContribution] = field(default_factory=list)
 
 
 def fetch_meetings(
@@ -319,6 +341,7 @@ def _normalize_record(record: Any) -> IndicoMeeting:
         description=description,
         participants=_extract_participants(record),
         documents=[],
+        contributions=[],
         url=str(url_value) if url_value is not None else None,
     )
 
@@ -355,13 +378,20 @@ def _hydrate_meeting_participants(
         ),
         base_url=base_url,
     )
+    contributions = _extract_contributions(results[0], base_url=base_url)
+    contribution_documents = [
+        document
+        for contribution in contributions
+        for document in contribution.documents
+    ]
     return IndicoMeeting(
         remote_id=meeting.remote_id,
         title=meeting.title,
         start_datetime=meeting.start_datetime,
         description=meeting.description,
         participants=participants,
-        documents=documents,
+        documents=_merge_documents(contribution_documents, documents),
+        contributions=contributions,
         url=meeting.url,
     )
 
@@ -453,22 +483,268 @@ def _dedupe_names(values: list[str]) -> list[str]:
     return unique_names
 
 
-def _extract_documents(event_html: str, base_url: str) -> list[tuple[str, str]]:
+def _extract_documents(event_html: str, base_url: str) -> list[IndicoDocument]:
     matches = re.findall(
         r'<a[^>]+class="[^"]*\battachment\b[^"]*"[^>]+href="([^"]+)"[^>]*title="([^"]+)"',
         event_html,
         flags=re.IGNORECASE,
     )
-    documents: list[tuple[str, str]] = []
+    documents: list[IndicoDocument] = []
     seen: set[str] = set()
     for href, title in matches:
-        absolute_url = href if href.startswith("http") else f"{base_url}{href}"
+        absolute_url = _absolute_url(href, base_url)
         folded = absolute_url.casefold()
         if folded in seen:
             continue
         seen.add(folded)
-        documents.append((title.strip(), absolute_url))
+        documents.append(IndicoDocument(label=title.strip(), url=absolute_url))
     return documents
+
+
+def _extract_contribution_documents(
+    record: Any, base_url: str
+) -> list[IndicoDocument]:
+    return [
+        document
+        for contribution in _extract_contributions(record, base_url)
+        for document in contribution.documents
+    ]
+
+
+def _extract_contributions(
+    record: Any, base_url: str
+) -> list[IndicoContribution]:
+    contributions = record.get("contributions", []) if isinstance(record, dict) else []
+    extracted: list[IndicoContribution] = []
+    sorted_contributions = sorted(
+        enumerate(contributions),
+        key=lambda item: _contribution_sort_key(item[1], fallback_index=item[0]),
+    )
+    for contribution_position, (_, contribution) in enumerate(sorted_contributions):
+        if not isinstance(contribution, dict):
+            continue
+        talk_title = str(contribution.get("title", "")).strip() or None
+        speaker_names = _extract_participants(contribution)
+        documents: list[IndicoDocument] = []
+        for attachment_index, (label, url) in enumerate(
+            _collect_attachment_links(contribution, base_url)
+        ):
+            documents.append(
+                IndicoDocument(
+                    label=label,
+                    url=url,
+                    talk_title=talk_title,
+                    speaker_names=speaker_names,
+                    sort_key=(0, contribution_position, attachment_index),
+                )
+            )
+        extracted.append(
+            IndicoContribution(
+                title=talk_title or "Untitled talk",
+                speaker_names=speaker_names,
+                documents=_dedupe_document_list(documents),
+                sort_key=(0, contribution_position),
+            )
+        )
+    return extracted
+
+
+def _collect_attachment_links(
+    value: Any, base_url: str, parent_key: str = ""
+) -> list[tuple[str, str]]:
+    if isinstance(value, list):
+        documents: list[tuple[str, str]] = []
+        for item in value:
+            documents.extend(_collect_attachment_links(item, base_url, parent_key))
+        return documents
+
+    if not isinstance(value, dict):
+        return []
+
+    documents: list[tuple[str, str]] = []
+    lowered_parent = parent_key.lower()
+    if _looks_like_attachment_record(value, lowered_parent):
+        label = _pick_first_string(value, "filename", "fileName", "title", "name", "label")
+        href = _pick_first_string(
+            value, "download_url", "downloadUrl", "href", "url", "link_url", "linkUrl"
+        )
+        if label and href:
+            documents.append((label, _absolute_url(href, base_url)))
+
+    for key, child in value.items():
+        documents.extend(_collect_attachment_links(child, base_url, str(key)))
+    return documents
+
+
+def _looks_like_attachment_record(value: dict[str, Any], parent_key: str) -> bool:
+    if parent_key in {"attachments", "attachment", "materials", "material", "files", "resources"}:
+        return True
+    return any(
+        key in value
+        for key in ("download_url", "downloadUrl", "filename", "fileName", "mimeType", "contentType")
+    )
+
+
+def _pick_first_string(value: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        candidate = value.get(key)
+        if isinstance(candidate, str):
+            normalized = candidate.strip()
+            if normalized:
+                return normalized
+    return None
+
+
+def _absolute_url(url: str, base_url: str) -> str:
+    return url if url.startswith("http") else f"{base_url}{url}"
+
+
+def _merge_documents(*document_groups: list[IndicoDocument]) -> list[IndicoDocument]:
+    merged: list[IndicoDocument] = []
+    seen: set[str] = set()
+    for document_group in document_groups:
+        for document in document_group:
+            folded = document.url.casefold()
+            if folded in seen:
+                continue
+            seen.add(folded)
+            merged = _merge_document_candidate(merged, document)
+    return sorted(_dedupe_document_list(merged), key=lambda document: document.sort_key)
+
+
+def _dedupe_document_list(documents: list[IndicoDocument]) -> list[IndicoDocument]:
+    deduped: list[IndicoDocument] = []
+    for document in documents:
+        deduped = _merge_document_candidate(deduped, document)
+    return deduped
+
+
+def _merge_document_candidate(
+    existing_documents: list[IndicoDocument], candidate: IndicoDocument
+) -> list[IndicoDocument]:
+    for index, existing in enumerate(existing_documents):
+        if existing.url.casefold() == candidate.url.casefold():
+            if _document_rank(candidate) > _document_rank(existing):
+                existing_documents[index] = candidate
+            return existing_documents
+        if _same_logical_document(existing, candidate):
+            existing_documents[index] = _prefer_document(existing, candidate)
+            return existing_documents
+
+    existing_documents.append(candidate)
+    return existing_documents
+
+
+def _same_logical_document(left: IndicoDocument, right: IndicoDocument) -> bool:
+    if left.label.casefold() != right.label.casefold():
+        return False
+
+    left_talk = (left.talk_title or "").casefold()
+    right_talk = (right.talk_title or "").casefold()
+    if left_talk and right_talk:
+        return left_talk == right_talk
+
+    if left_talk or right_talk:
+        return True
+
+    return tuple(name.casefold() for name in left.speaker_names) == tuple(
+        name.casefold() for name in right.speaker_names
+    )
+
+
+def _prefer_document(left: IndicoDocument, right: IndicoDocument) -> IndicoDocument:
+    preferred = left if _document_rank(left) >= _document_rank(right) else right
+    fallback = right if preferred is left else left
+    metadata_source = preferred if _document_context_rank(preferred) >= _document_context_rank(fallback) else fallback
+    url_source = preferred if _document_url_rank(preferred) >= _document_url_rank(fallback) else fallback
+    return IndicoDocument(
+        label=metadata_source.label or url_source.label,
+        url=url_source.url,
+        talk_title=metadata_source.talk_title or fallback.talk_title,
+        speaker_names=metadata_source.speaker_names or fallback.speaker_names,
+        sort_key=preferred.sort_key if preferred.sort_key <= fallback.sort_key else fallback.sort_key,
+    )
+
+
+def _document_rank(document: IndicoDocument) -> tuple[int, int]:
+    return (_document_context_rank(document), _document_url_rank(document))
+
+
+def _document_context_rank(document: IndicoDocument) -> int:
+    return int(bool(document.talk_title or document.speaker_names))
+
+
+def _document_url_rank(document: IndicoDocument) -> int:
+    return int(not _looks_like_indico_redirect(document.url))
+
+
+def _looks_like_indico_redirect(url: str) -> bool:
+    return bool(re.search(r"/attachments/\d+/\d+/go(?:$|[?#])", url))
+
+
+def _contribution_sort_key(contribution: Any, fallback_index: int) -> tuple[int, ...]:
+    if not isinstance(contribution, dict):
+        return (2, fallback_index)
+
+    start_value = _pick(
+        contribution,
+        "start_dt",
+        "start_datetime",
+        "start",
+        "startDate",
+        default=None,
+    )
+    normalized_start = _normalize_sort_datetime(start_value)
+    if normalized_start is not None:
+        return (0, *normalized_start)
+
+    contribution_id = _pick(contribution, "id", "contributionId", default=None)
+    if contribution_id is not None:
+        numeric = _parse_int(contribution_id)
+        if numeric is not None:
+            return (1, numeric)
+        return (1, fallback_index, str(contribution_id))
+
+    return (2, fallback_index)
+
+
+def _normalize_sort_datetime(value: Any) -> tuple[int, int, int, int, int, int] | None:
+    if isinstance(value, dict):
+        date_value = value.get("date")
+        if not isinstance(date_value, str) or not date_value:
+            return None
+        time_value = value.get("time", "00:00:00")
+        if not isinstance(time_value, str) or not time_value:
+            time_value = "00:00:00"
+        normalized = f"{date_value}T{time_value}".replace("Z", "+00:00")
+    elif isinstance(value, datetime):
+        normalized = value.isoformat()
+    elif isinstance(value, date):
+        normalized = f"{value.isoformat()}T00:00:00"
+    elif isinstance(value, str) and value.strip():
+        normalized = value.strip().replace("Z", "+00:00")
+    else:
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    return (
+        parsed.year,
+        parsed.month,
+        parsed.day,
+        parsed.hour,
+        parsed.minute,
+        parsed.second,
+    )
+
+
+def _parse_int(value: Any) -> int | None:
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return None
 
 
 def _pick(record: Any, *keys: str, default: Any = ...) -> Any:

@@ -8,6 +8,7 @@ from mdit_py_plugins.dollarmath import dollarmath_plugin
 
 def _make_md() -> MarkdownIt:
     md = MarkdownIt("commonmark", {"html": False, "linkify": True, "typographer": True})
+    md.enable("table")
     md.use(dollarmath_plugin)
     return md
 
@@ -22,4 +23,9 @@ def render_markdown(text: str | None) -> str:
     """
     if not text:
         return ""
-    return _MD.render(text)
+    rendered = _MD.render(text)
+    return (
+        rendered.replace("&lt;br&gt;", "<br>")
+        .replace("&lt;br/&gt;", "<br>")
+        .replace("&lt;br /&gt;", "<br>")
+    )

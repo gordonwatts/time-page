@@ -21,6 +21,8 @@ class DocumentRef(BaseModel):
 
     label: str = Field(min_length=1)
     url: str | None = None
+    talk_title: str | None = None
+    speaker_names: list[str] = Field(default_factory=list)
 
 
 class EventTypeStyle(BaseModel):

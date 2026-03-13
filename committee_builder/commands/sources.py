@@ -11,7 +11,11 @@ from urllib.parse import urlparse
 
 import typer
 
-from committee_builder.indico.client import fetch_category_title, fetch_meetings
+from committee_builder.indico.client import (
+    IndicoContribution,
+    fetch_category_title,
+    fetch_meetings,
+)
 from committee_builder.indico.config import (
     IndicoConfig,
     IndicoSource,
@@ -213,24 +217,41 @@ def generate_sources_command(
             api_key_env=api_key_env,
             api_token_env=api_token_env,
         ):
+            summary_md = html_to_markdown(meeting.description) or ""
+            if meeting.url:
+                indico_link = f"[Link To Indico]({meeting.url})"
+                summary_md = (
+                    f"{indico_link}\n\n{summary_md.lstrip()}"
+                    if summary_md.strip()
+                    else indico_link
+                )
+            contribution_table = _build_contribution_table(meeting.contributions)
+            if contribution_table:
+                summary_md = (
+                    f"{summary_md.rstrip()}\n\n{contribution_table}"
+                    if summary_md.strip()
+                    else contribution_table
+                )
             event_doc: dict[str, object] = {
                 "id": f"{selected_source.name}-{meeting.remote_id}",
                 "type": "meeting",
                 "title": meeting.title,
                 "date": meeting.start_datetime.date().isoformat(),
                 "important": False,
-                "summary_md": html_to_markdown(meeting.description)
+                "summary_md": summary_md
                 or f"Imported from source `{selected_source.name}`.",
                 "participants": meeting.participants,
                 "tags": [selected_source.name],
                 "documents": [
-                    {"label": label, "url": url} for label, url in meeting.documents
+                    {
+                        "label": document.label,
+                        "url": document.url,
+                        "talk_title": document.talk_title,
+                        "speaker_names": document.speaker_names,
+                    }
+                    for document in meeting.documents
                 ],
             }
-            if meeting.url:
-                event_doc["documents"].append(
-                    {"label": "Event Link", "url": meeting.url}
-                )
             generated_events.append(event_doc)
 
     generated_events.sort(key=lambda item: (str(item["date"]), str(item["id"])))
@@ -406,3 +427,83 @@ def _select_sources(config: IndicoConfig, names: list[str]) -> list[IndicoSource
     if missing_sources:
         raise typer.BadParameter(f"Unknown source(s): {', '.join(missing_sources)}")
     return [source_lookup[name] for name in names]
+
+
+def _build_contribution_table(contributions: list[IndicoContribution]) -> str:
+    if not contributions:
+        return ""
+
+    rows = [
+        "| Talk | Authors | Documents |",
+        "| --- | --- | --- |",
+    ]
+    for contribution in sorted(contributions, key=lambda item: item.sort_key):
+        authors = ", ".join(contribution.speaker_names) if contribution.speaker_names else "-"
+        if contribution.documents:
+            documents = "<br>".join(
+                f"• [{_escape_markdown_table_cell(document.label)}]({document.url})"
+                for document in contribution.documents
+            )
+        else:
+            documents = "-"
+        rows.append(
+            "| "
+            + " | ".join(
+                [
+                    _escape_markdown_table_cell(_short_contribution_title(contribution)),
+                    _escape_markdown_table_cell(authors),
+                    documents.replace("|", "\\|"),
+                ]
+            )
+            + " |"
+        )
+    return "\n".join(rows)
+
+
+def _escape_markdown_table_cell(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().replace("|", "\\|")
+
+
+def _short_contribution_title(contribution: IndicoContribution) -> str:
+    source = contribution.documents[0].label if contribution.documents else contribution.title
+    shortened = _short_title_from_label(source, contribution.speaker_names)
+    fallback = re.sub(r"\s+", " ", contribution.title).strip()
+    if _looks_like_identifier_title(shortened):
+        return fallback or shortened or "Untitled talk"
+    return shortened or fallback or "Untitled talk"
+
+
+def _short_title_from_label(label: str, speaker_names: list[str]) -> str:
+    stem = Path(label).stem
+    stem = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", stem)
+    stem = re.sub(r"[_-]+", " ", stem)
+    stem = re.sub(r"\b\d{6,8}\b", " ", stem)
+    stem = re.sub(r"\b(?:amgmeeting|amg)\b", " ", stem, flags=re.IGNORECASE)
+    stem = re.sub(r"\bcopy\b", " ", stem, flags=re.IGNORECASE)
+    stem = re.sub(r"\b\d+\b(?=\s*$)", " ", stem)
+    stem = re.sub(r"\s+", " ", stem).strip()
+
+    for speaker_name in speaker_names:
+        speaker_pattern = re.sub(r"\s+", " ", speaker_name).strip()
+        if not speaker_pattern:
+            continue
+        stem = re.sub(
+            rf"\b{re.escape(speaker_pattern)}\b\s*$",
+            "",
+            stem,
+            flags=re.IGNORECASE,
+        ).strip()
+
+    return re.sub(r"\s+", " ", stem).strip()
+
+
+def _looks_like_identifier_title(value: str) -> bool:
+    normalized = re.sub(r"\s+", " ", value).strip()
+    if not normalized:
+        return True
+    if re.fullmatch(r"[A-Z0-9!._/-]+", normalized):
+        return True
+    words = [word for word in re.split(r"\s+", normalized) if word]
+    if len(words) == 1 and len(re.findall(r"[A-Za-z]", normalized)) <= 8:
+        return True
+    return False

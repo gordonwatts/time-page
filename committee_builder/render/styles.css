@@ -24,6 +24,11 @@ h4 { margin: 14px 0 8px; font-size: 0.95rem; }
 .summary { border: 1px solid var(--border); border-radius: 12px; background: #f8fafc; padding: 12px; }
 .summary p { line-height: 1.5; }
 .summary pre { overflow: auto; }
+.document-item { margin-bottom: 10px; }
+.document-meta { margin-bottom: 4px; line-height: 1.35; display: grid; gap: 2px; }
+.document-file a, .document-file { word-break: break-word; }
+.document-sublist { margin: 0; padding-left: 18px; }
+.document-sublist li { margin: 4px 0; }
 .timeline-list { position: relative; padding-left: 18px; }
 .timeline-list::before { content: ""; position: absolute; left: 5px; top: 0; bottom: 0; width: 1px; background: var(--border); }
 .year { display: inline-block; font-size: 0.75rem; color: var(--muted); background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; margin: 8px 0; position: sticky; top: 0; }
