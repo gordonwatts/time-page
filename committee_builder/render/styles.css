@@ -24,6 +24,13 @@ h4 { margin: 14px 0 8px; font-size: 0.95rem; }
 .summary { border: 1px solid var(--border); border-radius: 12px; background: #f8fafc; padding: 12px; }
 .summary p { line-height: 1.5; }
 .summary pre { overflow: auto; }
+.summary table { width: 100%; border-collapse: collapse; table-layout: auto; }
+.summary th, .summary td { padding: 6px 8px; vertical-align: top; }
+.summary th + th, .summary td + td { border-left: 1px solid var(--border); }
+.summary thead th { border-bottom: 1px solid var(--border); }
+.summary th:nth-child(1), .summary td:nth-child(1),
+.summary th:nth-child(2), .summary td:nth-child(2) { white-space: normal; }
+.summary th:nth-child(3), .summary td:nth-child(3) { white-space: nowrap; }
 .document-item { margin-bottom: 10px; }
 .document-meta { margin-bottom: 4px; line-height: 1.35; display: grid; gap: 2px; }
 .document-file a, .document-file { word-break: break-word; }

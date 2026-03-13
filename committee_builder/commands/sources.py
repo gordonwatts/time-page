@@ -13,6 +13,7 @@ import typer
 
 from committee_builder.indico.client import (
     IndicoContribution,
+    IndicoDocument,
     fetch_category_title,
     fetch_meetings,
 )
@@ -439,15 +440,16 @@ def _build_contribution_table(contributions: list[IndicoContribution]) -> str:
         return ""
 
     rows = [
-        "| Talk | Authors | Documents |",
+        "| Talk | Speakers | Documents |",
         "| --- | --- | --- |",
     ]
     for contribution in sorted(contributions, key=lambda item: item.sort_key):
         authors = ", ".join(contribution.speaker_names) if contribution.speaker_names else "-"
         if contribution.documents:
+            document_labels = _build_document_link_labels(contribution.documents)
             documents = "<br>".join(
-                f"• [{_escape_markdown_table_cell(document.label)}]({document.url})"
-                for document in contribution.documents
+                f"• [{_escape_markdown_table_cell(label)}]({document.url})"
+                for document, label in zip(contribution.documents, document_labels, strict=True)
             )
         else:
             documents = "-"
@@ -463,6 +465,65 @@ def _build_contribution_table(contributions: list[IndicoContribution]) -> str:
             + " |"
         )
     return "\n".join(rows)
+
+
+def _build_document_link_labels(documents: list[IndicoDocument]) -> list[str]:
+    if not documents:
+        return []
+    if len(documents) == 1:
+        return ["Talk"]
+
+    normalized_labels = [
+        re.sub(r"\s+", " ", document.label).strip() or f"Upload {index + 1}"
+        for index, document in enumerate(documents)
+    ]
+    return _compact_unique_labels(normalized_labels)
+
+
+def _compact_unique_labels(labels: list[str], *, initial_width: int = 20) -> list[str]:
+    if not labels:
+        return []
+
+    maximum_width = max(len(label) for label in labels)
+    minimum_width = min(initial_width, maximum_width)
+
+    for width in range(minimum_width, maximum_width + 1):
+        shortened = [label if len(label) <= width else label[:width] for label in labels]
+        if len(set(shortened)) != len(shortened):
+            continue
+
+        rolled_back = [
+            _roll_back_to_word_boundary(label, width) for label in labels
+        ]
+        if len(set(rolled_back)) == len(rolled_back):
+            return rolled_back
+
+        duplicates = {
+            value for value in rolled_back if rolled_back.count(value) > 1
+        }
+        return [
+            shortened[index] if value in duplicates else value
+            for index, value in enumerate(rolled_back)
+        ]
+
+    duplicate_counts: dict[str, int] = {}
+    unique_labels: list[str] = []
+    for label in labels:
+        count = duplicate_counts.get(label, 0) + 1
+        duplicate_counts[label] = count
+        unique_labels.append(label if count == 1 else f"{label} ({count})")
+    return unique_labels
+
+
+def _roll_back_to_word_boundary(value: str, width: int) -> str:
+    if len(value) <= width:
+        return value
+
+    truncated = value[:width]
+    last_space = truncated.rfind(" ")
+    if last_space <= 0:
+        return truncated
+    return truncated[:last_space]
 
 
 def _contributions_with_documents(

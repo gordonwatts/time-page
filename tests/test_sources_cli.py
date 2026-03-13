@@ -18,6 +18,8 @@ from committee_builder.indico.client import (
 from committee_builder.indico import client as indico_client_module
 from committee_builder.commands.sources import (
     GeneratePaths,
+    _build_document_link_labels,
+    _compact_unique_labels,
     _resolve_generate_paths,
     _short_contribution_title,
 )
@@ -323,9 +325,8 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
         assert "[Link To Indico](https://indico.example.com/event/1001)" in rendered
         assert "- Updates" in rendered
         assert "- *Risks*" in rendered
-        assert "| Talk | Authors | Documents |" in rendered
-        assert "slides" in rendered
-        assert "• [slides.pdf](https://indico.example.com/files/slides.pdf)" in rendered
+        assert "| Talk | Speakers | Documents |" in rendered
+        assert "• [Talk](https://indico.example.com/files/slides.pdf)" in rendered
         assert "- Jane Doe" in rendered
         assert "- John Roe" in rendered
 
@@ -947,6 +948,42 @@ def test_short_contribution_title_uses_cleaned_filename() -> None:
     )
 
     assert _short_contribution_title(contribution) == "Lossy Compression Studies In FTAG"
+
+
+def test_build_document_link_labels_uses_talk_for_single_upload() -> None:
+    labels = _build_document_link_labels(
+        [IndicoDocument(label="Very long filename.pdf", url="https://example.org/slides.pdf")]
+    )
+
+    assert labels == ["Talk"]
+
+
+def test_compact_unique_labels_truncates_at_word_boundary_when_possible() -> None:
+    labels = _compact_unique_labels(
+        ["First very long upload name.pdf", "Second very long upload name.pdf"]
+    )
+
+    assert labels == ["First very long", "Second very long"]
+
+
+def test_compact_unique_labels_extends_until_unique() -> None:
+    labels = _compact_unique_labels(
+        ["Common prefix upload alpha.pdf", "Common prefix upload beta.pdf"]
+    )
+
+    assert labels == ["Common prefix upload a", "Common prefix upload b"]
+
+
+def test_compact_unique_labels_reverts_colliding_word_boundary_rollbacks() -> None:
+    labels = _compact_unique_labels(
+        [
+            "Alpha beta one file.pdf",
+            "Alpha beta one note.pdf",
+            "Gamma delta report long.pdf",
+        ]
+    )
+
+    assert labels == ["Alpha beta one file.", "Alpha beta one note.", "Gamma delta report"]
 
 
 def test_indico_client_dummy_without_dependency() -> None:
