@@ -132,3 +132,4 @@ dmypy.json
 atlas*.yaml
 atlas*.html
 .tmp*/*
+test-scratch/

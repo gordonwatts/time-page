@@ -30,4 +30,4 @@ committee_builder = ["render/*.css", "render/*.j2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -p no:cacheprovider"
