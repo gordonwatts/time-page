@@ -131,4 +131,4 @@ dmypy.json
 
 atlas*.yaml
 atlas*.html
-.tmp/*
+.tmp*/*
