@@ -229,6 +229,8 @@ def test_indico_generate_merges_imported_meetings(
         rendered = output_path.read_text(encoding="utf-8")
         assert "atlas-1001" in rendered
         assert "Weekly Coordination" in rendered
+        assert "important: true" in rendered
+        assert 'short_label: "Weekly Coordination"' in rendered
         assert "[Link To Indico](https://indico.example.com/event/1001)" in rendered
         assert "slides.pdf" in rendered
         assert "https://indico.example.com/files/slides.pdf" in rendered
@@ -323,6 +325,233 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
         assert "• [slides.pdf](https://indico.example.com/files/slides.pdf)" in rendered
         assert "- Jane Doe" in rendered
         assert "- John Roe" in rendered
+
+
+def test_indico_generate_marks_meeting_interesting_when_talk_files_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        project_path = Path("project.yaml")
+        project_path.write_text(BASE_PROJECT, encoding="utf-8")
+
+        config_path = Path("sources")
+        add_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config_path),
+                "https://indico.example.com/category/11/",
+                "--title",
+                "atlas",
+            ],
+        )
+        assert add_result.exit_code == 0
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> list[IndicoMeeting]:
+            return [
+                IndicoMeeting(
+                    remote_id="1001",
+                    title="Weekly Coordination",
+                    start_datetime=datetime(2024, 5, 10, 9, 30),
+                    description="Imported agenda",
+                    participants=["Jane Doe", "John Roe", "Alex Poe"],
+                    documents=[],
+                    contributions=[
+                        IndicoContribution(
+                            title="Calibration update",
+                            speaker_names=["Jane Doe"],
+                            documents=[
+                                IndicoDocument(
+                                    label="calibration.pdf",
+                                    url="https://indico.example.com/files/calibration.pdf",
+                                )
+                            ],
+                            sort_key=(0, 0),
+                        ),
+                        IndicoContribution(
+                            title="Detector status",
+                            speaker_names=["John Roe"],
+                            documents=[
+                                IndicoDocument(
+                                    label="status.pdf",
+                                    url="https://indico.example.com/files/status.pdf",
+                                )
+                            ],
+                            sort_key=(1, 0),
+                        ),
+                        IndicoContribution(
+                            title="Open discussion",
+                            speaker_names=["Alex Poe"],
+                            documents=[],
+                            sort_key=(2, 0),
+                        ),
+                    ],
+                    url="https://indico.example.com/event/1001",
+                )
+            ]
+
+        monkeypatch.setattr(
+            "committee_builder.commands.sources.fetch_meetings", fake_fetch
+        )
+
+        output_path = Path("generated.yaml")
+        result = runner.invoke(
+            app,
+            [
+                "indico",
+                "generate",
+                str(config_path),
+                str(project_path),
+                "--from",
+                "2024-05-01",
+                "--to",
+                "2024-05-31",
+                "--output",
+                str(output_path),
+            ],
+        )
+        assert result.exit_code == 0
+
+        rendered = output_path.read_text(encoding="utf-8")
+        assert "important: true" in rendered
+        assert 'short_label: "Calibration update; Detector status"' in rendered
+
+
+def test_indico_generate_keeps_meeting_collapsed_without_talk_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        project_path = Path("project.yaml")
+        project_path.write_text(BASE_PROJECT, encoding="utf-8")
+
+        config_path = Path("sources")
+        add_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config_path),
+                "https://indico.example.com/category/11/",
+                "--title",
+                "atlas",
+            ],
+        )
+        assert add_result.exit_code == 0
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> list[IndicoMeeting]:
+            return [
+                IndicoMeeting(
+                    remote_id="1001",
+                    title="Weekly Coordination",
+                    start_datetime=datetime(2024, 5, 10, 9, 30),
+                    description="Imported agenda",
+                    participants=["Jane Doe"],
+                    documents=[],
+                    contributions=[
+                        IndicoContribution(
+                            title="Calibration update",
+                            speaker_names=["Jane Doe"],
+                            documents=[],
+                        )
+                    ],
+                    url="https://indico.example.com/event/1001",
+                )
+            ]
+
+        monkeypatch.setattr(
+            "committee_builder.commands.sources.fetch_meetings", fake_fetch
+        )
+
+        output_path = Path("generated.yaml")
+        result = runner.invoke(
+            app,
+            [
+                "indico",
+                "generate",
+                str(config_path),
+                str(project_path),
+                "--from",
+                "2024-05-01",
+                "--to",
+                "2024-05-31",
+                "--output",
+                str(output_path),
+            ],
+        )
+        assert result.exit_code == 0
+
+        rendered = output_path.read_text(encoding="utf-8")
+        assert "important: false" in rendered
+        assert "short_label:" not in rendered
+
+
+def test_indico_generate_marks_meeting_interesting_when_only_agenda_documents_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        project_path = Path("project.yaml")
+        project_path.write_text(BASE_PROJECT, encoding="utf-8")
+
+        config_path = Path("sources")
+        add_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config_path),
+                "https://indico.example.com/category/11/",
+                "--title",
+                "atlas",
+            ],
+        )
+        assert add_result.exit_code == 0
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> list[IndicoMeeting]:
+            return [
+                IndicoMeeting(
+                    remote_id="1001",
+                    title="Weekly Coordination",
+                    start_datetime=datetime(2024, 5, 10, 9, 30),
+                    description="Imported agenda",
+                    participants=["Jane Doe"],
+                    documents=[
+                        IndicoDocument(
+                            label="agenda.pdf",
+                            url="https://indico.example.com/files/agenda.pdf",
+                        )
+                    ],
+                    contributions=[],
+                    url="https://indico.example.com/event/1001",
+                )
+            ]
+
+        monkeypatch.setattr(
+            "committee_builder.commands.sources.fetch_meetings", fake_fetch
+        )
+
+        output_path = Path("generated.yaml")
+        result = runner.invoke(
+            app,
+            [
+                "indico",
+                "generate",
+                str(config_path),
+                str(project_path),
+                "--from",
+                "2024-05-01",
+                "--to",
+                "2024-05-31",
+                "--output",
+                str(output_path),
+            ],
+        )
+        assert result.exit_code == 0
+
+        rendered = output_path.read_text(encoding="utf-8")
+        assert "important: true" in rendered
+        assert "agenda.pdf" in rendered
+        assert "short_label:" not in rendered
 
 
 def test_resolve_generate_paths_treats_missing_second_arg_as_output(

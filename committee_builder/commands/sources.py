@@ -217,6 +217,10 @@ def generate_sources_command(
             api_key_env=api_key_env,
             api_token_env=api_token_env,
         ):
+            interesting_contributions = _contributions_with_documents(
+                meeting.contributions
+            )
+            is_interesting_meeting = bool(meeting.documents or interesting_contributions)
             summary_md = html_to_markdown(meeting.description) or ""
             if meeting.url:
                 indico_link = f"[Link To Indico]({meeting.url})"
@@ -237,7 +241,8 @@ def generate_sources_command(
                 "type": "meeting",
                 "title": meeting.title,
                 "date": meeting.start_datetime.date().isoformat(),
-                "important": False,
+                "important": is_interesting_meeting,
+                "short_label": _build_meeting_short_label(interesting_contributions),
                 "summary_md": summary_md
                 or f"Imported from source `{selected_source.name}`.",
                 "participants": meeting.participants,
@@ -458,6 +463,39 @@ def _build_contribution_table(contributions: list[IndicoContribution]) -> str:
             + " |"
         )
     return "\n".join(rows)
+
+
+def _contributions_with_documents(
+    contributions: list[IndicoContribution],
+) -> list[IndicoContribution]:
+    return [
+        contribution for contribution in contributions if contribution.documents
+    ]
+
+
+def _build_meeting_short_label(
+    contributions: list[IndicoContribution],
+    *,
+    limit: int = 3,
+) -> str | None:
+    if not contributions:
+        return None
+
+    titles: list[str] = []
+    for contribution in sorted(contributions, key=lambda item: item.sort_key):
+        title = re.sub(r"\s+", " ", contribution.title).strip() or "Untitled talk"
+        if title not in titles:
+            titles.append(title)
+
+    if not titles:
+        return None
+
+    visible = titles[:limit]
+    remaining = len(titles) - len(visible)
+    summary = "; ".join(visible)
+    if remaining > 0:
+        summary = f"{summary}; +{remaining} more"
+    return summary
 
 
 def _escape_markdown_table_cell(value: str) -> str:
