@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRATCH_PARENT = REPO_ROOT / "test-scratch"
-SCRATCH_ROOT = SCRATCH_PARENT / "pytest-runtime"
+SCRATCH_ROOT = SCRATCH_PARENT / f"pytest-runtime-{os.getpid()}"
 _COUNTER = itertools.count()
 _ORIGINAL_ENV = {name: os.environ.get(name) for name in ("TEMP", "TMP", "TMPDIR")}
 _ORIGINAL_ISOLATED_FILESYSTEM = CliRunner.isolated_filesystem
@@ -89,7 +89,6 @@ def _restore_isolated_filesystem() -> None:
 
 def pytest_sessionstart(session: pytest.Session) -> None:
     _remove_tree(SCRATCH_ROOT)
-    _remove_empty_parent(SCRATCH_PARENT)
     SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
     _set_temp_environment(SCRATCH_ROOT)
     _patch_isolated_filesystem()

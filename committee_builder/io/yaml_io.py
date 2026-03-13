@@ -16,7 +16,21 @@ def read_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
+def _strip_none_values(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _strip_none_values(item)
+            for key, item in value.items()
+            if item is not None
+        }
+    if isinstance(value, list):
+        return [_strip_none_values(item) for item in value]
+    return value
+
+
 def write_yaml(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+        yaml.safe_dump(
+            _strip_none_values(data), f, sort_keys=False, allow_unicode=True
+        )

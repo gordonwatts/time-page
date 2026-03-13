@@ -26,7 +26,9 @@ class IndicoDocument:
     url: str
     talk_title: str | None = None
     speaker_names: list[str] = field(default_factory=list)
-    sort_key: tuple[int, ...] = field(default_factory=lambda: (1, 0, 0), repr=False)
+    sort_key: tuple[int, ...] = field(
+        default_factory=lambda: (1, 0, 0), repr=False, compare=False
+    )
 
 
 @dataclass(frozen=True)

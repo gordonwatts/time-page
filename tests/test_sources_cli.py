@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from committee_builder.cli import app
@@ -227,10 +228,12 @@ def test_indico_generate_merges_imported_meetings(
         assert output_path.exists()
 
         rendered = output_path.read_text(encoding="utf-8")
+        parsed = yaml.safe_load(rendered)
+        event = parsed["events"][0]
         assert "atlas-1001" in rendered
         assert "Weekly Coordination" in rendered
-        assert "important: true" in rendered
-        assert 'short_label: "Weekly Coordination"' in rendered
+        assert event["important"] is True
+        assert event["short_label"] == "Weekly Coordination"
         assert "[Link To Indico](https://indico.example.com/event/1001)" in rendered
         assert "slides.pdf" in rendered
         assert "https://indico.example.com/files/slides.pdf" in rendered
@@ -414,8 +417,10 @@ def test_indico_generate_marks_meeting_interesting_when_talk_files_exist(
         assert result.exit_code == 0
 
         rendered = output_path.read_text(encoding="utf-8")
-        assert "important: true" in rendered
-        assert 'short_label: "Calibration update; Detector status"' in rendered
+        parsed = yaml.safe_load(rendered)
+        event = parsed["events"][0]
+        assert event["important"] is True
+        assert event["short_label"] == "Calibration update; Detector status"
 
 
 def test_indico_generate_keeps_meeting_collapsed_without_talk_files(
@@ -482,8 +487,10 @@ def test_indico_generate_keeps_meeting_collapsed_without_talk_files(
         assert result.exit_code == 0
 
         rendered = output_path.read_text(encoding="utf-8")
-        assert "important: false" in rendered
-        assert "short_label:" not in rendered
+        parsed = yaml.safe_load(rendered)
+        event = parsed["events"][0]
+        assert event["important"] is False
+        assert "short_label" not in event
 
 
 def test_indico_generate_marks_meeting_interesting_when_only_agenda_documents_exist(
@@ -549,9 +556,11 @@ def test_indico_generate_marks_meeting_interesting_when_only_agenda_documents_ex
         assert result.exit_code == 0
 
         rendered = output_path.read_text(encoding="utf-8")
-        assert "important: true" in rendered
+        parsed = yaml.safe_load(rendered)
+        event = parsed["events"][0]
+        assert event["important"] is True
         assert "agenda.pdf" in rendered
-        assert "short_label:" not in rendered
+        assert "short_label" not in event
 
 
 def test_resolve_generate_paths_treats_missing_second_arg_as_output(
