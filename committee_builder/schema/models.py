@@ -56,6 +56,8 @@ class CommitteeEvent(BaseModel):
     participants: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     documents: list[DocumentRef] = Field(default_factory=list)
+    source_name: str | None = None
+    source_color: str | None = None
 
 
 class CommitteeHistory(BaseModel):

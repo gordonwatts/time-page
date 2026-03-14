@@ -20,6 +20,7 @@ from committee_builder.commands.sources import (
     GeneratePaths,
     _build_document_link_labels,
     _compact_unique_labels,
+    _normalize_source_color,
     _resolve_generate_paths,
     _short_contribution_title,
 )
@@ -59,9 +60,13 @@ def test_indico_add_list_remove() -> None:
         )
         assert add_result.exit_code == 0
 
+        config_data = yaml.safe_load(config.with_suffix(".yaml").read_text(encoding="utf-8"))
+        assert config_data["sources"][0]["color"].startswith("#")
+
         list_result = runner.invoke(app, ["indico", "list", str(config)])
         assert list_result.exit_code == 0
         assert "cern: category=42" in list_result.stdout
+        assert "color=" in list_result.stdout
 
         remove_result = runner.invoke(
             app, ["indico", "remove", str(config), "cern"]
@@ -152,7 +157,81 @@ def test_indico_add_uses_category_title_when_not_provided(
             ["indico", "list", "my-project"],
         )
         assert list_result.exit_code == 0
-        assert "ATLAS: category=77, base_url=https://indico.example.com/indico" in list_result.stdout
+        assert "ATLAS: category=77, base_url=https://indico.example.com/indico, color=" in list_result.stdout
+
+
+def test_indico_add_normalizes_named_color() -> None:
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                "colors",
+                "https://indico.example.com/category/77/",
+                "--title",
+                "ATLAS",
+                "--color",
+                "red",
+            ],
+        )
+        assert result.exit_code == 0
+
+        config_data = yaml.safe_load(Path("colors.yaml").read_text(encoding="utf-8"))
+        assert config_data["sources"][0]["color"] == _normalize_source_color("red")
+
+
+def test_indico_add_normalizes_hex_color() -> None:
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                "colors",
+                "https://indico.example.com/category/77/",
+                "--title",
+                "ATLAS",
+                "--color",
+                "#88ccff",
+            ],
+        )
+        assert result.exit_code == 0
+
+        config_data = yaml.safe_load(Path("colors.yaml").read_text(encoding="utf-8"))
+        assert config_data["sources"][0]["color"] == _normalize_source_color("#88ccff")
+
+
+def test_indico_add_assigns_unique_generated_colors() -> None:
+    with runner.isolated_filesystem():
+        first = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                "colors",
+                "https://indico.example.com/category/11/",
+                "--title",
+                "ATLAS",
+            ],
+        )
+        second = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                "colors",
+                "https://indico.example.com/category/12/",
+                "--title",
+                "CMS",
+            ],
+        )
+        assert first.exit_code == 0
+        assert second.exit_code == 0
+
+        config_data = yaml.safe_load(Path("colors.yaml").read_text(encoding="utf-8"))
+        colors = [source["color"] for source in config_data["sources"]]
+        assert len(colors) == len(set(colors))
 
 
 def test_indico_generate_merges_imported_meetings(
@@ -236,6 +315,9 @@ def test_indico_generate_merges_imported_meetings(
         assert "Weekly Coordination" in rendered
         assert event["important"] is True
         assert event["short_label"] == "Weekly Coordination"
+        assert event["source_name"] == "atlas"
+        assert event["source_color"].startswith("#")
+        assert event["tags"] == []
         assert "[Link To Indico](https://indico.example.com/event/1001)" in rendered
         assert "slides.pdf" in rendered
         assert "https://indico.example.com/files/slides.pdf" in rendered
@@ -614,6 +696,19 @@ def test_indico_add_requires_config() -> None:
             ["indico", "add", "https://indico.example.com/category/11/"],
         )
         assert result.exit_code == 2
+
+
+def test_indico_config_missing_color_fails() -> None:
+    with runner.isolated_filesystem():
+        Path("broken.yaml").write_text(
+            'version: "1"\nsources:\n  - name: "ATLAS"\n    category_id: 77\n    base_url: "https://indico.example.com"\n',
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(app, ["indico", "list", "broken"])
+        assert result.exit_code != 0
+        assert result.exception is not None
+        assert "color" in str(result.exception)
 
 
 def test_build_auth_falls_back_to_unauthenticated_when_env_missing(

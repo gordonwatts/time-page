@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from colorsys import hls_to_rgb
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -44,6 +45,155 @@ DEFAULT_EVENT_TYPE_STYLES = {
     "milestone": {"label": "Milestone", "color": "amber"},
     "external": {"label": "External", "color": "violet"},
 }
+NAMED_COLORS = {
+    "aliceblue": "#f0f8ff",
+    "antiquewhite": "#faebd7",
+    "aqua": "#00ffff",
+    "aquamarine": "#7fffd4",
+    "azure": "#f0ffff",
+    "beige": "#f5f5dc",
+    "bisque": "#ffe4c4",
+    "black": "#000000",
+    "blanchedalmond": "#ffebcd",
+    "blue": "#0000ff",
+    "blueviolet": "#8a2be2",
+    "brown": "#a52a2a",
+    "burlywood": "#deb887",
+    "cadetblue": "#5f9ea0",
+    "chartreuse": "#7fff00",
+    "chocolate": "#d2691e",
+    "coral": "#ff7f50",
+    "cornflowerblue": "#6495ed",
+    "cornsilk": "#fff8dc",
+    "crimson": "#dc143c",
+    "cyan": "#00ffff",
+    "darkblue": "#00008b",
+    "darkcyan": "#008b8b",
+    "darkgoldenrod": "#b8860b",
+    "darkgray": "#a9a9a9",
+    "darkgreen": "#006400",
+    "darkgrey": "#a9a9a9",
+    "darkkhaki": "#bdb76b",
+    "darkmagenta": "#8b008b",
+    "darkolivegreen": "#556b2f",
+    "darkorange": "#ff8c00",
+    "darkorchid": "#9932cc",
+    "darkred": "#8b0000",
+    "darksalmon": "#e9967a",
+    "darkseagreen": "#8fbc8f",
+    "darkslateblue": "#483d8b",
+    "darkslategray": "#2f4f4f",
+    "darkslategrey": "#2f4f4f",
+    "darkturquoise": "#00ced1",
+    "darkviolet": "#9400d3",
+    "deeppink": "#ff1493",
+    "deepskyblue": "#00bfff",
+    "dimgray": "#696969",
+    "dimgrey": "#696969",
+    "dodgerblue": "#1e90ff",
+    "firebrick": "#b22222",
+    "floralwhite": "#fffaf0",
+    "forestgreen": "#228b22",
+    "fuchsia": "#ff00ff",
+    "gainsboro": "#dcdcdc",
+    "ghostwhite": "#f8f8ff",
+    "gold": "#ffd700",
+    "goldenrod": "#daa520",
+    "gray": "#808080",
+    "green": "#008000",
+    "greenyellow": "#adff2f",
+    "grey": "#808080",
+    "honeydew": "#f0fff0",
+    "hotpink": "#ff69b4",
+    "indianred": "#cd5c5c",
+    "indigo": "#4b0082",
+    "ivory": "#fffff0",
+    "khaki": "#f0e68c",
+    "lavender": "#e6e6fa",
+    "lavenderblush": "#fff0f5",
+    "lawngreen": "#7cfc00",
+    "lemonchiffon": "#fffacd",
+    "lightblue": "#add8e6",
+    "lightcoral": "#f08080",
+    "lightcyan": "#e0ffff",
+    "lightgoldenrodyellow": "#fafad2",
+    "lightgray": "#d3d3d3",
+    "lightgreen": "#90ee90",
+    "lightgrey": "#d3d3d3",
+    "lightpink": "#ffb6c1",
+    "lightsalmon": "#ffa07a",
+    "lightseagreen": "#20b2aa",
+    "lightskyblue": "#87cefa",
+    "lightslategray": "#778899",
+    "lightslategrey": "#778899",
+    "lightsteelblue": "#b0c4de",
+    "lightyellow": "#ffffe0",
+    "lime": "#00ff00",
+    "limegreen": "#32cd32",
+    "linen": "#faf0e6",
+    "magenta": "#ff00ff",
+    "maroon": "#800000",
+    "mediumaquamarine": "#66cdaa",
+    "mediumblue": "#0000cd",
+    "mediumorchid": "#ba55d3",
+    "mediumpurple": "#9370db",
+    "mediumseagreen": "#3cb371",
+    "mediumslateblue": "#7b68ee",
+    "mediumspringgreen": "#00fa9a",
+    "mediumturquoise": "#48d1cc",
+    "mediumvioletred": "#c71585",
+    "midnightblue": "#191970",
+    "mintcream": "#f5fffa",
+    "mistyrose": "#ffe4e1",
+    "moccasin": "#ffe4b5",
+    "navajowhite": "#ffdead",
+    "navy": "#000080",
+    "oldlace": "#fdf5e6",
+    "olive": "#808000",
+    "olivedrab": "#6b8e23",
+    "orange": "#ffa500",
+    "orangered": "#ff4500",
+    "orchid": "#da70d6",
+    "palegoldenrod": "#eee8aa",
+    "palegreen": "#98fb98",
+    "paleturquoise": "#afeeee",
+    "palevioletred": "#db7093",
+    "papayawhip": "#ffefd5",
+    "peachpuff": "#ffdab9",
+    "peru": "#cd853f",
+    "pink": "#ffc0cb",
+    "plum": "#dda0dd",
+    "powderblue": "#b0e0e6",
+    "purple": "#800080",
+    "red": "#ff0000",
+    "rosybrown": "#bc8f8f",
+    "royalblue": "#4169e1",
+    "saddlebrown": "#8b4513",
+    "salmon": "#fa8072",
+    "sandybrown": "#f4a460",
+    "seagreen": "#2e8b57",
+    "seashell": "#fff5ee",
+    "sienna": "#a0522d",
+    "silver": "#c0c0c0",
+    "skyblue": "#87ceeb",
+    "slateblue": "#6a5acd",
+    "slategray": "#708090",
+    "slategrey": "#708090",
+    "snow": "#fffafa",
+    "springgreen": "#00ff7f",
+    "steelblue": "#4682b4",
+    "tan": "#d2b48c",
+    "teal": "#008080",
+    "thistle": "#d8bfd8",
+    "tomato": "#ff6347",
+    "turquoise": "#40e0d0",
+    "violet": "#ee82ee",
+    "wheat": "#f5deb3",
+    "white": "#ffffff",
+    "whitesmoke": "#f5f5f5",
+    "yellow": "#ffff00",
+    "yellowgreen": "#9acd32",
+}
 
 
 @dataclass(frozen=True)
@@ -74,6 +224,11 @@ def add_source_command(
         "--api-token-env",
         help="Env var for API token (used when resolving category title).",
     ),
+    color: str | None = typer.Option(
+        None,
+        "--color",
+        help="Optional feed color. Accepts hex (#RRGGBB or #RGB) or CSS color names.",
+    ),
 ) -> None:
     """Add or replace a source in the project config."""
     config_path = _normalize_config_path(config)
@@ -86,11 +241,21 @@ def add_source_command(
     )
 
     current = load_indico_config(config_path)
+    source_color = (
+        _normalize_source_color(color)
+        if color is not None
+        else _assign_unique_source_color(current.sources)
+    )
     filtered_sources = [
         source for source in current.sources if source.name != source_name
     ]
     filtered_sources.append(
-        IndicoSource(name=source_name, category_id=category_id, base_url=base_url)
+        IndicoSource(
+            name=source_name,
+            category_id=category_id,
+            base_url=base_url,
+            color=source_color,
+        )
     )
     save_indico_config(
         config_path,
@@ -113,7 +278,7 @@ def list_sources_command(
 
     for source in sorted(current.sources, key=lambda item: item.name):
         typer.echo(
-            f"{source.name}: category={source.category_id}, base_url={source.base_url}"
+            f"{source.name}: category={source.category_id}, base_url={source.base_url}, color={source.color}"
         )
 
 
@@ -247,7 +412,7 @@ def generate_sources_command(
                 "summary_md": summary_md
                 or f"Imported from source `{selected_source.name}`.",
                 "participants": meeting.participants,
-                "tags": [selected_source.name],
+                "tags": [],
                 "documents": [
                     {
                         "label": document.label,
@@ -257,6 +422,8 @@ def generate_sources_command(
                     }
                     for document in meeting.documents
                 ],
+                "source_name": selected_source.name,
+                "source_color": selected_source.color,
             }
             generated_events.append(event_doc)
 
@@ -376,6 +543,62 @@ def _parse_category_url(category_url: str) -> tuple[str, int]:
     base_url = normalize_base_url(f"{parsed.scheme}://{parsed.netloc}{prefix}")
     category_id = int(match.group("id"))
     return base_url, category_id
+
+
+def _normalize_source_color(value: str) -> str:
+    hex_color = _parse_color_to_hex(value)
+    pale_color = _blend_rgb(_hex_to_rgb(hex_color), 0.78)
+    return _rgb_to_hex(pale_color)
+
+
+def _assign_unique_source_color(existing_sources: list[IndicoSource]) -> str:
+    used_colors = {source.color.lower() for source in existing_sources}
+    golden_ratio = 0.61803398875
+    for index in range(1, 512):
+        hue = (index * golden_ratio) % 1.0
+        red, green, blue = hls_to_rgb(hue, 0.62, 0.55)
+        candidate = _rgb_to_hex(
+            _blend_rgb(
+                (round(red * 255), round(green * 255), round(blue * 255)),
+                0.78,
+            )
+        )
+        if candidate.lower() not in used_colors:
+            return candidate
+    raise typer.BadParameter("Unable to assign a unique source color.")
+
+
+def _parse_color_to_hex(value: str) -> str:
+    normalized = re.sub(r"\s+", "", value).lower()
+    if re.fullmatch(r"#[0-9a-f]{3}", normalized):
+        return "#" + "".join(component * 2 for component in normalized[1:])
+    if re.fullmatch(r"#[0-9a-f]{6}", normalized):
+        return normalized
+    named = NAMED_COLORS.get(normalized)
+    if named is not None:
+        return named
+    raise typer.BadParameter(
+        f"Unsupported color '{value}'. Use #RGB, #RRGGBB, or a CSS color name."
+    )
+
+
+def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+    return (
+        int(value[1:3], 16),
+        int(value[3:5], 16),
+        int(value[5:7], 16),
+    )
+
+
+def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+
+def _blend_rgb(rgb: tuple[int, int, int], weight_to_white: float) -> tuple[int, int, int]:
+    clamped_weight = max(0.0, min(1.0, weight_to_white))
+    return tuple(
+        round(channel + (255 - channel) * clamped_weight) for channel in rgb
+    )
 
 
 def _resolve_range(
