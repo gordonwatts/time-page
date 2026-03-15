@@ -192,7 +192,17 @@
     }).join("");
   }
 
+  function isEditableTarget(target) {
+    if (!(target instanceof HTMLElement)) return false;
+    const tagName = target.tagName;
+    return target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
+  }
+
   function render() {
+    const activeElement = document.activeElement;
+    const searchWasFocused = activeElement?.id === "search";
+    const searchSelectionStart = searchWasFocused ? activeElement.selectionStart : null;
+    const searchSelectionEnd = searchWasFocused ? activeElement.selectionEnd : null;
     const events = (data.events || []).filter((e) => eventMatches(e, state.query));
     const selected = events.find((e) => e.id === state.selectedId) || events[0] || data.events?.[0];
     if (selected) state.selectedId = selected.id;
@@ -201,6 +211,7 @@
     const committee = data.committee || {};
     const start = committee.start_date ? fmtDate(committee.start_date) : "";
     const end = committee.end_date ? fmtDate(committee.end_date) : "Present";
+    const todayKey = new Date().toISOString().slice(0, 10);
 
     root.innerHTML = `
       <div class="page">
@@ -210,8 +221,6 @@
             <p class="subtitle">${esc(committee.subtitle || "")}</p>
             <div class="chips">
               <span class="chip">${esc(start)} -> ${esc(end)}</span>
-              <span class="chip">Static standalone HTML</span>
-              <span class="chip">Markdown summaries</span>
             </div>
           </div>
           <label class="search"><span>Search</span><input id="search" value="${esc(state.query)}" placeholder="Search events, participants, tags..." /></label>
@@ -240,7 +249,7 @@
       : "";
 
     detail.innerHTML = `
-      <div class="panel-header"><h2>Selected entry</h2><div class="panel-pills">${renderPill(selectedStyle.label, selectedStyle.color)}${selectedSourcePill}</div></div>
+      <div class="panel-header"><h2>Selected Entry</h2><div class="panel-pills">${renderPill(selectedStyle.label, selectedStyle.color)}${selectedSourcePill}</div></div>
       <article>
         <h3>${esc(selected.title)}</h3>
         <div class="meta">${esc(fmtDate(selected.date))}${selected.important ? " · major event" : ""}</div>
@@ -251,7 +260,8 @@
       </article>
     `;
 
-    let timelineHtml = `<div class="panel-header"><h2>Committee timeline</h2></div><p class="muted-text">Major moments are expanded; routine entries stay compact.</p><div class="timeline-list">`;
+    let dividerInserted = false;
+    let timelineHtml = `<div class="panel-header"><h2>Timeline</h2></div><div class="timeline-list">`;
     for (const [year, list] of years) {
       timelineHtml += `<div class="year-block"><div class="year">${esc(year)}</div>`;
       for (const event of list) {
@@ -263,13 +273,27 @@
         const sourcePill = event.source_name && event.source_color
           ? renderPill(event.source_name, event.source_color, "small")
           : "";
+        if (!dividerInserted && event.date >= todayKey) {
+          timelineHtml += `
+            <div class="timeline-divider" aria-hidden="true">
+              <span class="timeline-divider-line"></span>
+              <span class="timeline-divider-pill">Future</span>
+            </div>
+          `;
+          dividerInserted = true;
+        }
         timelineHtml += `
           <button class="${cls}${isSelected ? " selected" : ""}" data-event-id="${esc(event.id)}" title="${esc(event.title)} · ${esc(fmtDate(event.date))} · ${esc(style.label)}">
-            <span class="dot" ${dotStyleAttr(tone)}></span>
-            <span class="date">${esc(isMajor ? fmtDate(event.date) : fmtCompactDate(event.date))}</span>
-            <span class="title">${esc(event.title)}</span>
-            <span class="timeline-pills">${renderPill(style.label, style.color, "small")}${sourcePill}</span>
-            ${isMajor ? `<span class="short">${esc(event.short_label || event.title)}</span>` : ""}
+            <span class="timeline-rail">
+              <span class="dot" ${dotStyleAttr(tone)}></span>
+              <span class="connector"></span>
+            </span>
+            <span class="timeline-content">
+              <span class="date">${esc(isMajor ? fmtDate(event.date) : fmtCompactDate(event.date))}</span>
+              <span class="title">${esc(event.title)}</span>
+              <span class="timeline-pills">${renderPill(style.label, style.color, "small")}${sourcePill}</span>
+              ${isMajor ? `<span class="short">${esc(event.short_label || event.title)}</span>` : ""}
+            </span>
           </button>
         `;
       }
@@ -280,10 +304,27 @@
 
     const search = root.querySelector("#search");
     search?.addEventListener("input", (ev) => { state.query = ev.target.value; render(); });
+    if (searchWasFocused && search) {
+      search.focus();
+      if (searchSelectionStart !== null && searchSelectionEnd !== null) {
+        search.setSelectionRange(searchSelectionStart, searchSelectionEnd);
+      }
+    }
     timeline.querySelectorAll("[data-event-id]").forEach((el) => {
       el.addEventListener("click", () => { state.selectedId = el.getAttribute("data-event-id"); render(); });
     });
   }
 
   render();
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (isEditableTarget(event.target)) return;
+    const search = root.querySelector("#search");
+    if (!search) return;
+    event.preventDefault();
+    search.focus();
+    const valueLength = search.value.length;
+    search.setSelectionRange(valueLength, valueLength);
+  });
 })();
