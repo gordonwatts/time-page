@@ -38,6 +38,7 @@ class IndicoContribution:
     title: str
     speaker_names: list[str] = field(default_factory=list)
     documents: list[IndicoDocument] = field(default_factory=list)
+    minutes: str = ""
     sort_key: tuple[int, ...] = field(default_factory=lambda: (2, 0), repr=False)
 
 
@@ -52,6 +53,7 @@ class IndicoMeeting:
     participants: list[str]
     documents: list[IndicoDocument]
     url: str | None
+    minutes: str = ""
     contributions: list[IndicoContribution] = field(default_factory=list)
 
 
@@ -341,6 +343,7 @@ def _normalize_record(record: Any) -> IndicoMeeting:
         title=title,
         start_datetime=start_datetime,
         description=description,
+        minutes=_extract_minutes(record),
         participants=_extract_participants(record),
         documents=[],
         contributions=[],
@@ -391,6 +394,7 @@ def _hydrate_meeting_participants(
         title=meeting.title,
         start_datetime=meeting.start_datetime,
         description=meeting.description,
+        minutes=_extract_minutes(results[0]) or meeting.minutes,
         participants=participants,
         documents=_merge_documents(contribution_documents, documents),
         contributions=contributions,
@@ -545,10 +549,120 @@ def _extract_contributions(
                 title=talk_title or "Untitled talk",
                 speaker_names=speaker_names,
                 documents=_dedupe_document_list(documents),
+                minutes=_extract_minutes(contribution),
                 sort_key=(0, contribution_position),
             )
         )
     return extracted
+
+
+_MINUTES_FIELD_CANDIDATES = (
+    "minutes",
+    "minute",
+    "meeting_minutes",
+    "meetingMinutes",
+    "minutes_html",
+    "minutesHtml",
+    "minutes_text",
+    "minutesText",
+    "minute_text",
+    "minuteText",
+    "note",
+    "notes",
+    "meeting_note",
+    "meetingNote",
+    "meeting_notes",
+    "meetingNotes",
+    "note_html",
+    "noteHtml",
+    "notes_html",
+    "notesHtml",
+    "note_text",
+    "noteText",
+    "notes_text",
+    "notesText",
+)
+
+_MINUTES_CONTENT_KEYS = (
+    "html",
+    "rendered_html",
+    "renderedHtml",
+    "markdown",
+    "md",
+    "text",
+    "value",
+    "content",
+    "source",
+)
+
+_MINUTES_EXCLUDED_CONTAINERS = {
+    "attachments",
+    "attachment",
+    "materials",
+    "material",
+    "files",
+    "resources",
+    "documents",
+    "contributions",
+    "subcontributions",
+}
+
+
+def _extract_minutes(record: Any) -> str:
+    return _extract_minutes_from_value(record, parent_key="")
+
+
+def _extract_minutes_from_value(value: Any, parent_key: str) -> str:
+    if isinstance(value, list):
+        fragments = [
+            _extract_minutes_from_value(item, parent_key=parent_key).strip()
+            for item in value
+        ]
+        return "\n\n".join(fragment for fragment in fragments if fragment)
+
+    if not isinstance(value, dict):
+        return ""
+
+    if parent_key.casefold() in _MINUTES_EXCLUDED_CONTAINERS:
+        return ""
+
+    for key in _MINUTES_FIELD_CANDIDATES:
+        if key not in value:
+            continue
+        rendered = _extract_minutes_payload(value[key])
+        if rendered:
+            return rendered
+
+    for key, child in value.items():
+        if not isinstance(child, (dict, list)):
+            continue
+        rendered = _extract_minutes_from_value(child, parent_key=str(key))
+        if rendered:
+            return rendered
+    return ""
+
+
+def _extract_minutes_payload(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+
+    if isinstance(value, list):
+        fragments = [_extract_minutes_payload(item) for item in value]
+        return "\n\n".join(fragment for fragment in fragments if fragment)
+
+    if not isinstance(value, dict):
+        return ""
+
+    for key in _MINUTES_CONTENT_KEYS:
+        candidate = value.get(key)
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+
+    for child in value.values():
+        rendered = _extract_minutes_payload(child)
+        if rendered:
+            return rendered
+    return ""
 
 
 def _collect_attachment_links(

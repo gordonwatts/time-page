@@ -387,7 +387,14 @@ def generate_sources_command(
                 meeting.contributions
             )
             is_interesting_meeting = bool(meeting.documents or interesting_contributions)
-            summary_md = html_to_markdown(meeting.description) or ""
+            summary_md = (
+                html_to_markdown(meeting.description, base_url=selected_source.base_url)
+                or ""
+            )
+            minutes_md = (
+                html_to_markdown(meeting.minutes, base_url=selected_source.base_url)
+                or ""
+            )
             if meeting.url:
                 indico_link = f"[Link To Indico]({meeting.url})"
                 summary_md = (
@@ -411,6 +418,7 @@ def generate_sources_command(
                 "short_label": _build_meeting_short_label(interesting_contributions),
                 "summary_md": summary_md
                 or f"Imported from source `{selected_source.name}`.",
+                "minutes_md": minutes_md or None,
                 "participants": meeting.participants,
                 "tags": [],
                 "documents": [
@@ -421,6 +429,29 @@ def generate_sources_command(
                         "speaker_names": document.speaker_names,
                     }
                     for document in meeting.documents
+                ],
+                "contributions": [
+                    {
+                        "title": contribution.title,
+                        "speaker_names": contribution.speaker_names,
+                        "documents": [
+                            {
+                                "label": document.label,
+                                "url": document.url,
+                                "talk_title": document.talk_title,
+                                "speaker_names": document.speaker_names,
+                            }
+                            for document in contribution.documents
+                        ],
+                        "minutes_md": (
+                            html_to_markdown(
+                                contribution.minutes,
+                                base_url=selected_source.base_url,
+                            )
+                            or None
+                        ),
+                    }
+                    for contribution in meeting.contributions
                 ],
                 "source_name": selected_source.name,
                 "source_color": selected_source.color,

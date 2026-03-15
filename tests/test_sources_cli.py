@@ -356,6 +356,11 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
                         "<p>Agenda:</p>"
                         "<ul><li>Updates</li><li><em>Risks</em></li></ul>"
                     ),
+                    minutes=(
+                        "<p><strong>Minutes approved.</strong></p>"
+                        '<p><img src="/event/1001/attachments/7/8/plot.png" alt="plot"></p>'
+                        "<ul><li>Action one</li><li>Action two</li></ul>"
+                    ),
                     participants=["Jane Doe", "John Roe"],
                     documents=[
                         IndicoDocument(
@@ -367,6 +372,7 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
                         IndicoContribution(
                             title="Weekly Coordination",
                             speaker_names=["Jane Doe", "John Roe"],
+                            minutes="<p>Talk note with <em>formatting</em>.</p>",
                             documents=[
                                 IndicoDocument(
                                     label="slides.pdf",
@@ -407,6 +413,11 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
         assert "[Link To Indico](https://indico.example.com/event/1001)" in rendered
         assert "- Updates" in rendered
         assert "- *Risks*" in rendered
+        assert "minutes_md:" in rendered
+        assert "Minutes approved." in rendered
+        assert "![plot](https://indico.example.com/event/1001/attachments/7/8/plot.png)" in rendered
+        assert "- Action one" in rendered
+        assert "Talk note with *formatting*." in rendered
         assert "| Talk | Speakers | Documents |" in rendered
         assert "• [Talk](https://indico.example.com/files/slides.pdf)" in rendered
         assert "- Jane Doe" in rendered
@@ -993,6 +1004,46 @@ def test_extract_contributions_keeps_talk_rows_without_documents() -> None:
             title="Introduction",
             speaker_names=["Jane Doe"],
             documents=[],
+            sort_key=(0, 0),
+        )
+    ]
+
+
+def test_extract_meeting_minutes_prefers_explicit_minutes_field() -> None:
+    minutes = indico_client_module._extract_minutes(
+        {
+            "description": "<p>Agenda</p>",
+            "minutes": {"html": "<p><strong>Approved</strong> minutes.</p>"},
+            "contributions": [
+                {"title": "Talk", "note": {"html": "<p>Talk note</p>"}},
+            ],
+        }
+    )
+
+    assert minutes == "<p><strong>Approved</strong> minutes.</p>"
+
+
+def test_extract_contribution_minutes_reads_note_payload() -> None:
+    contributions = indico_client_module._extract_contributions(
+        {
+            "contributions": [
+                {
+                    "id": "100",
+                    "title": "Introduction",
+                    "speakers": [{"fullName": "Doe, Jane"}],
+                    "note": {"content": "<p>Discussed calibration strategy.</p>"},
+                }
+            ]
+        },
+        base_url="https://indico.cern.ch",
+    )
+
+    assert contributions == [
+        indico_client_module.IndicoContribution(
+            title="Introduction",
+            speaker_names=["Jane Doe"],
+            documents=[],
+            minutes="<p>Discussed calibration strategy.</p>",
             sort_key=(0, 0),
         )
     ]

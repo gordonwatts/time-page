@@ -25,6 +25,15 @@ class DocumentRef(BaseModel):
     speaker_names: list[str] = Field(default_factory=list)
 
 
+class ContributionRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1)
+    speaker_names: list[str] = Field(default_factory=list)
+    documents: list[DocumentRef] = Field(default_factory=list)
+    minutes_md: str | None = None
+
+
 class EventTypeStyle(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -53,9 +62,11 @@ class CommitteeEvent(BaseModel):
     important: bool = False
     short_label: str | None = None
     summary_md: str = Field(min_length=1)
+    minutes_md: str | None = None
     participants: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     documents: list[DocumentRef] = Field(default_factory=list)
+    contributions: list[ContributionRef] = Field(default_factory=list)
     source_name: str | None = None
     source_color: str | None = None
 

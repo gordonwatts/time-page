@@ -34,6 +34,14 @@ def _base_doc() -> dict:
                 "date": "2023-01-12",
                 "important": True,
                 "summary_md": "Hello",
+                "minutes_md": "Minutes",
+                "contributions": [
+                    {
+                        "title": "Status",
+                        "speaker_names": ["Jane Doe"],
+                        "minutes_md": "Talk minutes",
+                    }
+                ],
             }
         ],
     }
@@ -43,6 +51,8 @@ def test_schema_parses() -> None:
     history = CommitteeHistory.model_validate(_base_doc())
     assert history.committee.start_date == date(2023, 1, 1)
     assert len(history.events) == 1
+    assert history.events[0].minutes_md == "Minutes"
+    assert history.events[0].contributions[0].minutes_md == "Talk minutes"
 
 
 def test_duplicate_event_id_fails_semantics() -> None:

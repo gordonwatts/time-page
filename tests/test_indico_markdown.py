@@ -21,4 +21,14 @@ def test_html_to_markdown_converts_basic_markup() -> None:
 
 
 def test_html_to_markdown_normalizes_nbsp_noise() -> None:
-    assert html_to_markdown("<p>Bio:&nbsp;</p><p>Â </p>") == "Bio:"
+    assert html_to_markdown("<p>Bio:&nbsp;</p><p>Ã‚Â </p>") == "Bio:"
+
+
+def test_html_to_markdown_absolutizes_image_and_link_urls() -> None:
+    rendered = html_to_markdown(
+        '<p><a href="/event/1">Event</a></p><img src="/event/1/attachments/2/3/plot.png" alt="plot">',
+        base_url="https://indico.cern.ch",
+    )
+
+    assert "[Event](https://indico.cern.ch/event/1)" in rendered
+    assert "![plot](https://indico.cern.ch/event/1/attachments/2/3/plot.png)" in rendered

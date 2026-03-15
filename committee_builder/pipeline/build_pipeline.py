@@ -21,6 +21,11 @@ def _render_payload(history) -> dict:
 
     for event in payload["events"]:
         event["summary_html"] = render_markdown(event.get("summary_md"))
+        event["minutes_html"] = render_markdown(event.get("minutes_md"))
+        for contribution in event.get("contributions", []):
+            contribution["minutes_html"] = render_markdown(
+                contribution.get("minutes_md")
+            )
 
     return payload
 

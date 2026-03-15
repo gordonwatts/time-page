@@ -24,6 +24,14 @@ events:
     date: "2023-01-10"
     important: true
     summary_md: "# Heading"
+    minutes_md: "## Minutes\n\n- Approved"
+    contributions:
+      - title: "Detector status"
+        speaker_names: ["Jane Doe"]
+        minutes_md: "Talk minutes with **formatting**."
+        documents:
+          - label: "status.pdf"
+            url: "https://example.org/status.pdf"
     source_name: "Analysis Model Group Meetings"
     source_color: "#ffd6d6"
 """
@@ -42,6 +50,10 @@ def test_output_contains_inlined_assets_and_data(tmp_path: Path) -> None:
     assert "timeline-item" in text
     assert "Analysis Model Group Meetings" in text
     assert "#ffd6d6" in text
+    assert '"minutes_html":' in text
+    assert "Approved" in text
+    assert '"title": "Detector status"' in text
+    assert "Talk minutes with" in text
 
 
 def test_output_does_not_escape_inline_script_and_json(tmp_path: Path) -> None:

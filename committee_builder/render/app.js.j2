@@ -75,7 +75,12 @@
   function eventMatches(event, query) {
     const q = query.trim().toLowerCase();
     if (!q) return true;
-    const haystack = [event.title, event.type, event.summary_md, ...(event.tags || []), ...(event.participants || [])]
+    const contributionBits = (event.contributions || []).flatMap((contribution) => [
+      contribution.title,
+      contribution.minutes_md,
+      ...(contribution.speaker_names || []),
+    ]);
+    const haystack = [event.title, event.type, event.summary_md, event.minutes_md, ...(event.tags || []), ...(event.participants || []), ...contributionBits]
       .join(" ")
       .toLowerCase();
     return haystack.includes(q);
@@ -192,6 +197,26 @@
     }).join("");
   }
 
+  function renderContribution(contribution) {
+    const speakers = (contribution.speaker_names || [])
+      .map((speaker) => `<span class="chip">${esc(speaker)}</span>`)
+      .join("");
+    const documents = renderDocumentGroups(contribution.documents || []);
+    return `
+      <article class="contribution-card">
+        <div class="contribution-header">
+          <h5>${esc(contribution.title || "Untitled talk")}</h5>
+        </div>
+        <div class="chips">${speakers || "<span class='muted-text'>No speakers listed</span>"}</div>
+        ${contribution.minutes_html ? `<div class="summary contribution-minutes">${contribution.minutes_html}</div>` : ""}
+        <div class="contribution-documents">
+          <h6>Documents</h6>
+          <ul>${documents || "<li class='muted-text'>None</li>"}</ul>
+        </div>
+      </article>
+    `;
+  }
+
   function isEditableTarget(target) {
     if (!(target instanceof HTMLElement)) return false;
     const tagName = target.tagName;
@@ -242,10 +267,20 @@
 
     const selectedStyle = getStyle(selected.type);
     const docs = renderDocumentGroups(selected.documents || []);
+    const contributions = (selected.contributions || []).map((contribution) => renderContribution(contribution)).join("");
     const participants = (selected.participants || []).map((p) => `<span class="chip">${esc(p)}</span>`).join("");
     const tags = (selected.tags || []).map((t) => `<span class="chip muted">${esc(t)}</span>`).join("");
     const selectedSourcePill = selected.source_name && selected.source_color
       ? renderPill(selected.source_name, selected.source_color)
+      : "";
+    const summarySection = selected.summary_html
+      ? `<section><h4>Summary</h4><div class="summary">${selected.summary_html}</div></section>`
+      : "";
+    const minutesSection = selected.minutes_html
+      ? `<section><h4>Minutes</h4><div class="summary">${selected.minutes_html}</div></section>`
+      : "";
+    const contributionsSection = contributions
+      ? `<section><h4>Talk Minutes</h4><div class="contribution-list">${contributions}</div></section>`
       : "";
 
     detail.innerHTML = `
@@ -253,9 +288,11 @@
       <article>
         <h3>${esc(selected.title)}</h3>
         <div class="meta">${esc(fmtDate(selected.date))}${selected.important ? " · major event" : ""}</div>
-        <section class="summary">${selected.summary_html || ""}</section>
+        ${summarySection}
+        ${minutesSection}
         <section><h4>Participants</h4><div class="chips">${participants || "<span class='muted-text'>None</span>"}</div></section>
         <section><h4>Documents</h4><ul>${docs || "<li class='muted-text'>None</li>"}</ul></section>
+        ${contributionsSection}
         <section><h4>Tags</h4><div class="chips">${tags || "<span class='muted-text'>None</span>"}</div></section>
       </article>
     `;
