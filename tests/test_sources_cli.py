@@ -13,6 +13,7 @@ from committee_builder.cli import app
 from committee_builder.indico.client import (
     IndicoContribution,
     IndicoDocument,
+    IndicoAuthError,
     IndicoMeeting,
 )
 from committee_builder.indico import client as indico_client_module
@@ -158,6 +159,30 @@ def test_indico_add_uses_category_title_when_not_provided(
         )
         assert list_result.exit_code == 0
         assert "ATLAS: category=77, base_url=https://indico.example.com/indico, color=" in list_result.stdout
+
+
+def test_indico_add_logs_auth_error_for_protected_category(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    with runner.isolated_filesystem():
+        monkeypatch.setattr(
+            "committee_builder.commands.sources.fetch_category_title",
+            lambda **_kwargs: (_ for _ in ()).throw(IndicoAuthError("auth required")),
+        )
+
+        with caplog.at_level("ERROR"):
+            result = runner.invoke(
+                app,
+                [
+                    "indico",
+                    "add",
+                    "atlas",
+                    "https://indico.example.com/category/77/",
+                ],
+            )
+
+        assert result.exit_code != 0
+        assert "auth required" in caplog.text
 
 
 def test_indico_add_normalizes_named_color() -> None:
@@ -657,6 +682,58 @@ def test_indico_generate_marks_meeting_interesting_when_only_agenda_documents_ex
         assert "short_label" not in event
 
 
+def test_indico_generate_logs_warning_and_skips_source_on_auth_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    with runner.isolated_filesystem():
+        project_path = Path("project.yaml")
+        project_path.write_text(BASE_PROJECT, encoding="utf-8")
+
+        config_path = Path("sources")
+        add_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config_path),
+                "https://indico.example.com/category/11/",
+                "--title",
+                "atlas",
+            ],
+        )
+        assert add_result.exit_code == 0
+
+        monkeypatch.setattr(
+            "committee_builder.commands.sources.fetch_meetings",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                IndicoAuthError("auth required")
+            ),
+        )
+
+        output_path = Path("generated.yaml")
+        with caplog.at_level("WARNING"):
+            result = runner.invoke(
+                app,
+                [
+                    "indico",
+                    "generate",
+                    str(config_path),
+                    str(project_path),
+                    "--from",
+                    "2024-05-01",
+                    "--to",
+                    "2024-05-31",
+                    "--output",
+                    str(output_path),
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "Skipping source 'atlas': auth required" in caplog.text
+        parsed = yaml.safe_load(output_path.read_text(encoding="utf-8"))
+        assert parsed["events"] == []
+
+
 def test_resolve_generate_paths_treats_missing_second_arg_as_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -843,6 +920,74 @@ def test_build_auth_prefers_explicit_token_env_over_local_dotenv(
 
         assert auth["params"] == {}
         assert auth["headers"] == {"Authorization": "Bearer explicit-token"}
+
+
+def test_fetch_category_page_title_reads_standard_indico_title(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        text = "<html><head><title>Long Lived Particle Forum · Indico</title></head></html>"
+        url = "https://indico.cern.ch/category/2636/"
+        status_code = 200
+        content = text.encode("utf-8")
+
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        indico_client_module,
+        "_build_auth",
+        lambda **_kwargs: {"params": {}, "headers": {}},
+    )
+    monkeypatch.setattr(
+        indico_client_module.requests,
+        "get",
+        lambda *args, **kwargs: FakeResponse(),
+    )
+
+    assert (
+        indico_client_module._fetch_category_page_title(
+            "https://indico.cern.ch",
+            2636,
+            "INDICO_API_KEY",
+            "INDICO_API_TOKEN",
+        )
+        == "Long Lived Particle Forum"
+    )
+
+
+def test_fetch_category_page_title_accepts_mojibake_middle_dot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        text = "<html><head><title>Long Lived Particle Forum Â· Indico</title></head></html>"
+        url = "https://indico.cern.ch/category/2636/"
+        status_code = 200
+        content = text.encode("utf-8")
+
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        indico_client_module,
+        "_build_auth",
+        lambda **_kwargs: {"params": {}, "headers": {}},
+    )
+    monkeypatch.setattr(
+        indico_client_module.requests,
+        "get",
+        lambda *args, **kwargs: FakeResponse(),
+    )
+
+    assert (
+        indico_client_module._fetch_category_page_title(
+            "https://indico.cern.ch",
+            2636,
+            "INDICO_API_KEY",
+            "INDICO_API_TOKEN",
+        )
+        == "Long Lived Particle Forum"
+    )
 
 
 def test_normalize_record_supports_cern_indico_start_date_dict() -> None:

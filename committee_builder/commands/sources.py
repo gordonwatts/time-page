@@ -15,6 +15,7 @@ import typer
 from committee_builder.indico.client import (
     IndicoContribution,
     IndicoDocument,
+    IndicoAuthError,
     fetch_category_title,
     fetch_meetings,
 )
@@ -233,12 +234,16 @@ def add_source_command(
     """Add or replace a source in the project config."""
     config_path = _normalize_config_path(config)
     base_url, category_id = _parse_category_url(category_url)
-    source_name = title or fetch_category_title(
-        base_url=base_url,
-        category_id=category_id,
-        api_key_env=api_key_env,
-        api_token_env=api_token_env,
-    )
+    try:
+        source_name = title or fetch_category_title(
+            base_url=base_url,
+            category_id=category_id,
+            api_key_env=api_key_env,
+            api_token_env=api_token_env,
+        )
+    except IndicoAuthError as exc:
+        logger.error("%s", exc)
+        raise
 
     current = load_indico_config(config_path)
     source_color = (
@@ -376,13 +381,23 @@ def generate_sources_command(
 
     generated_events: list[dict[str, object]] = []
     for selected_source in selected:
-        for meeting in fetch_meetings(
-            selected_source,
-            range_start,
-            range_end,
-            api_key_env=api_key_env,
-            api_token_env=api_token_env,
-        ):
+        try:
+            meetings = fetch_meetings(
+                selected_source,
+                range_start,
+                range_end,
+                api_key_env=api_key_env,
+                api_token_env=api_token_env,
+            )
+        except IndicoAuthError as exc:
+            logger.warning(
+                "Skipping source '%s': %s",
+                selected_source.name,
+                exc,
+            )
+            continue
+
+        for meeting in meetings:
             interesting_contributions = _contributions_with_documents(
                 meeting.contributions
             )
