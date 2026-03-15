@@ -845,6 +845,68 @@ def test_build_auth_prefers_explicit_token_env_over_local_dotenv(
         assert auth["headers"] == {"Authorization": "Bearer explicit-token"}
 
 
+def test_fetch_category_page_title_reads_standard_indico_title(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        text = "<html><head><title>Long Lived Particle Forum · Indico</title></head></html>"
+
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        indico_client_module,
+        "_build_auth",
+        lambda **_kwargs: {"params": {}, "headers": {}},
+    )
+    monkeypatch.setattr(
+        indico_client_module.requests,
+        "get",
+        lambda *args, **kwargs: FakeResponse(),
+    )
+
+    assert (
+        indico_client_module._fetch_category_page_title(
+            "https://indico.cern.ch",
+            2636,
+            "INDICO_API_KEY",
+            "INDICO_API_TOKEN",
+        )
+        == "Long Lived Particle Forum"
+    )
+
+
+def test_fetch_category_page_title_accepts_mojibake_middle_dot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        text = "<html><head><title>Long Lived Particle Forum Â· Indico</title></head></html>"
+
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        indico_client_module,
+        "_build_auth",
+        lambda **_kwargs: {"params": {}, "headers": {}},
+    )
+    monkeypatch.setattr(
+        indico_client_module.requests,
+        "get",
+        lambda *args, **kwargs: FakeResponse(),
+    )
+
+    assert (
+        indico_client_module._fetch_category_page_title(
+            "https://indico.cern.ch",
+            2636,
+            "INDICO_API_KEY",
+            "INDICO_API_TOKEN",
+        )
+        == "Long Lived Particle Forum"
+    )
+
+
 def test_normalize_record_supports_cern_indico_start_date_dict() -> None:
     meeting = indico_client_module._normalize_record(
         {

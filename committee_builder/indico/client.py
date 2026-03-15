@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import hmac
 import os
 import re
@@ -220,9 +221,14 @@ def _fetch_category_page_title(
         if title:
             return title
 
-    title_match = re.search(r"<title>(.*?) · Indico</title>", response.text, re.DOTALL)
+    title_match = re.search(r"<title>(.*?)</title>", response.text, re.DOTALL)
     if title_match:
-        return title_match.group(1).strip()
+        title_text = html.unescape(re.sub(r"\s+", " ", title_match.group(1))).strip()
+        for suffix in (" · Indico", "Â· Indico"):
+            if title_text.endswith(suffix):
+                category_title = title_text[: -len(suffix)].strip()
+                if category_title:
+                    return category_title
     return None
 
 
