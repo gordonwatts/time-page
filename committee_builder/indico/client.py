@@ -22,6 +22,10 @@ from committee_builder.indico.credentials import normalize_base_url, resolve_sto
 logger = logging.getLogger(__name__)
 
 
+class IndicoAuthError(RuntimeError):
+    """Raised when an Indico request appears to require credentials."""
+
+
 @dataclass(frozen=True)
 class IndicoDocument:
     """Normalized document reference associated with an event or contribution."""
@@ -92,15 +96,50 @@ def fetch_meetings(
         len(payload.get("results", [])),
         len(payload.get("additionalInfo", {}).get("eventCategories", [])),
     )
-    meetings = [_normalize_record(record) for record in payload.get("results", [])]
-    return [
-        _hydrate_meeting_participants(
-            meeting,
+    if (
+        not payload.get("results")
+        and not payload.get("additionalInfo", {}).get("eventCategories", [])
+        and _auth_mode_for_base_url(source.base_url, api_key_env, api_token_env) is None
+        and _fetch_category_page_title(
+            base_url=source.base_url,
+            category_id=source.category_id,
             api_key_env=api_key_env,
             api_token_env=api_token_env,
         )
-        for meeting in meetings
-    ]
+        is None
+    ):
+        raise IndicoAuthError(
+            (
+                f"Category {source.category_id} at {source.base_url} did not return public "
+                "meeting data. Set INDICO_API_TOKEN/INDICO_API_KEY or store a project-local "
+                "credential with `committee indico api-key BASE_URL TOKEN`."
+            )
+        )
+    meetings = [_normalize_record(record) for record in payload.get("results", [])]
+    hydrated_meetings: list[IndicoMeeting] = []
+    for meeting in meetings:
+        try:
+            hydrated_meetings.append(
+                _hydrate_meeting_participants(
+                    meeting,
+                    api_key_env=api_key_env,
+                    api_token_env=api_token_env,
+                )
+            )
+        except IndicoAuthError:
+            raise
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            if status_code not in {401, 403}:
+                raise
+            logger.warning(
+                "Skipping agenda details for %s (%s) because Indico returned HTTP %s.",
+                meeting.title,
+                meeting.remote_id,
+                status_code,
+            )
+            hydrated_meetings.append(meeting)
+    return hydrated_meetings
 
 
 def fetch_category_title(
@@ -140,6 +179,15 @@ def fetch_category_title(
     if category_page_title:
         return category_page_title
 
+    if _auth_mode_for_base_url(base_url, api_key_env, api_token_env) is None:
+        raise IndicoAuthError(
+            (
+                f"No title returned for category {category_id} at {base_url}. "
+                "The category may require authentication. Set INDICO_API_TOKEN/INDICO_API_KEY "
+                "or store a project-local credential with "
+                "`committee indico api-key BASE_URL TOKEN`."
+            )
+        )
     raise RuntimeError(f"No title returned for category {category_id}.")
 
 
@@ -300,19 +348,22 @@ def _build_auth(
     api_token_env: str,
 ) -> dict[str, dict[str, str]]:
     base_url = _base_url_from_request_url(request_url)
+    auth_mode = _auth_mode_for_base_url(base_url, api_key_env, api_token_env)
     explicit_api_key = os.getenv(api_key_env)
     explicit_api_token = os.getenv(api_token_env)
-    stored_api_token = None
-    if not explicit_api_key and not explicit_api_token:
-        stored_api_token = resolve_stored_api_key(base_url)
+    stored_api_token = (
+        resolve_stored_api_key(base_url)
+        if not explicit_api_key and not explicit_api_token
+        else None
+    )
 
     api_key = explicit_api_key
     api_token = explicit_api_token or stored_api_token
-    if not api_key and not api_token:
+    if auth_mode is None:
         logger.debug("No Indico auth configured for base_url=%s", base_url)
         return {"params": {}, "headers": {}}
 
-    if api_key and api_token:
+    if auth_mode == "signed":
         logger.debug("Using signed Indico API auth for base_url=%s", base_url)
         timestamp = str(int(time.time()))
         signed_params = dict(params)
@@ -325,12 +376,34 @@ def _build_auth(
         )
         return {"params": signed_params, "headers": {}}
 
-    if api_key:
+    if auth_mode == "api_key":
         logger.debug("Using API key query auth for base_url=%s", base_url)
         return {"params": {"ak": api_key}, "headers": {}}
 
     logger.debug("Using bearer token auth for base_url=%s", base_url)
     return {"params": {}, "headers": {"Authorization": f"Bearer {api_token}"}}
+
+
+def _auth_mode_for_base_url(
+    base_url: str, api_key_env: str, api_token_env: str
+) -> str | None:
+    explicit_api_key = os.getenv(api_key_env)
+    explicit_api_token = os.getenv(api_token_env)
+    stored_api_token = (
+        resolve_stored_api_key(base_url)
+        if not explicit_api_key and not explicit_api_token
+        else None
+    )
+    api_key = explicit_api_key
+    api_token = explicit_api_token or stored_api_token
+
+    if api_key and api_token:
+        return "signed"
+    if api_key:
+        return "api_key"
+    if api_token:
+        return "bearer"
+    return None
 
 
 def _base_url_from_request_url(request_url: str) -> str:
