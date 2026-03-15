@@ -21,6 +21,8 @@ class DocumentRef(BaseModel):
 
     label: str = Field(min_length=1)
     url: str | None = None
+    talk_title: str | None = None
+    speaker_names: list[str] = Field(default_factory=list)
 
 
 class EventTypeStyle(BaseModel):
@@ -54,6 +56,8 @@ class CommitteeEvent(BaseModel):
     participants: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     documents: list[DocumentRef] = Field(default_factory=list)
+    source_name: str | None = None
+    source_color: str | None = None
 
 
 class CommitteeHistory(BaseModel):

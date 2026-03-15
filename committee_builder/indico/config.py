@@ -18,6 +18,7 @@ class IndicoSource(BaseModel):
     name: str = Field(min_length=1)
     category_id: int
     base_url: str = Field(min_length=1)
+    color: str = Field(min_length=1)
 
 
 class IndicoConfig(BaseModel):

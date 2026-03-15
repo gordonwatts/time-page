@@ -91,7 +91,7 @@ committee build data/committee.history.yaml --output dist/committee-history.html
 - `committee init PATH [--force]`
 - `committee import-csv` (placeholder)
 - `committee import-md` (placeholder)
-- `committee indico add CONFIG CATEGORY_URL [--title TITLE] [--api-key-env ENV] [--api-token-env ENV]`
+- `committee indico add CONFIG CATEGORY_URL [--title TITLE] [--color COLOR] [--api-key-env ENV] [--api-token-env ENV]`
 - `committee indico list CONFIG`
 - `committee indico remove CONFIG NAME`
 - `committee indico generate CONFIG PROJECT_YAML --from YYYY-MM-DD --to YYYY-MM-DD [--api-key-env ENV] [--api-token-env ENV] [--output PATH]`
@@ -107,8 +107,10 @@ pip install -e .
 Configure a source:
 
 ```bash
-committee indico add cern https://indico.example.org/category/1234/ --title cern
+committee indico add cern https://indico.example.org/category/1234/ --title cern --color red
 ```
+
+If `--color` is omitted, the CLI assigns a unique pale hex color automatically. Named CSS colors and hex values are normalized to stored `#RRGGBB` source colors.
 
 Generate meeting events into a new YAML file:
 

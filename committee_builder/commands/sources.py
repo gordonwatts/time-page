@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from colorsys import hls_to_rgb
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -11,7 +12,12 @@ from urllib.parse import urlparse
 
 import typer
 
-from committee_builder.indico.client import fetch_category_title, fetch_meetings
+from committee_builder.indico.client import (
+    IndicoContribution,
+    IndicoDocument,
+    fetch_category_title,
+    fetch_meetings,
+)
 from committee_builder.indico.config import (
     IndicoConfig,
     IndicoSource,
@@ -38,6 +44,155 @@ DEFAULT_EVENT_TYPE_STYLES = {
     "decision": {"label": "Decision", "color": "rose"},
     "milestone": {"label": "Milestone", "color": "amber"},
     "external": {"label": "External", "color": "violet"},
+}
+NAMED_COLORS = {
+    "aliceblue": "#f0f8ff",
+    "antiquewhite": "#faebd7",
+    "aqua": "#00ffff",
+    "aquamarine": "#7fffd4",
+    "azure": "#f0ffff",
+    "beige": "#f5f5dc",
+    "bisque": "#ffe4c4",
+    "black": "#000000",
+    "blanchedalmond": "#ffebcd",
+    "blue": "#0000ff",
+    "blueviolet": "#8a2be2",
+    "brown": "#a52a2a",
+    "burlywood": "#deb887",
+    "cadetblue": "#5f9ea0",
+    "chartreuse": "#7fff00",
+    "chocolate": "#d2691e",
+    "coral": "#ff7f50",
+    "cornflowerblue": "#6495ed",
+    "cornsilk": "#fff8dc",
+    "crimson": "#dc143c",
+    "cyan": "#00ffff",
+    "darkblue": "#00008b",
+    "darkcyan": "#008b8b",
+    "darkgoldenrod": "#b8860b",
+    "darkgray": "#a9a9a9",
+    "darkgreen": "#006400",
+    "darkgrey": "#a9a9a9",
+    "darkkhaki": "#bdb76b",
+    "darkmagenta": "#8b008b",
+    "darkolivegreen": "#556b2f",
+    "darkorange": "#ff8c00",
+    "darkorchid": "#9932cc",
+    "darkred": "#8b0000",
+    "darksalmon": "#e9967a",
+    "darkseagreen": "#8fbc8f",
+    "darkslateblue": "#483d8b",
+    "darkslategray": "#2f4f4f",
+    "darkslategrey": "#2f4f4f",
+    "darkturquoise": "#00ced1",
+    "darkviolet": "#9400d3",
+    "deeppink": "#ff1493",
+    "deepskyblue": "#00bfff",
+    "dimgray": "#696969",
+    "dimgrey": "#696969",
+    "dodgerblue": "#1e90ff",
+    "firebrick": "#b22222",
+    "floralwhite": "#fffaf0",
+    "forestgreen": "#228b22",
+    "fuchsia": "#ff00ff",
+    "gainsboro": "#dcdcdc",
+    "ghostwhite": "#f8f8ff",
+    "gold": "#ffd700",
+    "goldenrod": "#daa520",
+    "gray": "#808080",
+    "green": "#008000",
+    "greenyellow": "#adff2f",
+    "grey": "#808080",
+    "honeydew": "#f0fff0",
+    "hotpink": "#ff69b4",
+    "indianred": "#cd5c5c",
+    "indigo": "#4b0082",
+    "ivory": "#fffff0",
+    "khaki": "#f0e68c",
+    "lavender": "#e6e6fa",
+    "lavenderblush": "#fff0f5",
+    "lawngreen": "#7cfc00",
+    "lemonchiffon": "#fffacd",
+    "lightblue": "#add8e6",
+    "lightcoral": "#f08080",
+    "lightcyan": "#e0ffff",
+    "lightgoldenrodyellow": "#fafad2",
+    "lightgray": "#d3d3d3",
+    "lightgreen": "#90ee90",
+    "lightgrey": "#d3d3d3",
+    "lightpink": "#ffb6c1",
+    "lightsalmon": "#ffa07a",
+    "lightseagreen": "#20b2aa",
+    "lightskyblue": "#87cefa",
+    "lightslategray": "#778899",
+    "lightslategrey": "#778899",
+    "lightsteelblue": "#b0c4de",
+    "lightyellow": "#ffffe0",
+    "lime": "#00ff00",
+    "limegreen": "#32cd32",
+    "linen": "#faf0e6",
+    "magenta": "#ff00ff",
+    "maroon": "#800000",
+    "mediumaquamarine": "#66cdaa",
+    "mediumblue": "#0000cd",
+    "mediumorchid": "#ba55d3",
+    "mediumpurple": "#9370db",
+    "mediumseagreen": "#3cb371",
+    "mediumslateblue": "#7b68ee",
+    "mediumspringgreen": "#00fa9a",
+    "mediumturquoise": "#48d1cc",
+    "mediumvioletred": "#c71585",
+    "midnightblue": "#191970",
+    "mintcream": "#f5fffa",
+    "mistyrose": "#ffe4e1",
+    "moccasin": "#ffe4b5",
+    "navajowhite": "#ffdead",
+    "navy": "#000080",
+    "oldlace": "#fdf5e6",
+    "olive": "#808000",
+    "olivedrab": "#6b8e23",
+    "orange": "#ffa500",
+    "orangered": "#ff4500",
+    "orchid": "#da70d6",
+    "palegoldenrod": "#eee8aa",
+    "palegreen": "#98fb98",
+    "paleturquoise": "#afeeee",
+    "palevioletred": "#db7093",
+    "papayawhip": "#ffefd5",
+    "peachpuff": "#ffdab9",
+    "peru": "#cd853f",
+    "pink": "#ffc0cb",
+    "plum": "#dda0dd",
+    "powderblue": "#b0e0e6",
+    "purple": "#800080",
+    "red": "#ff0000",
+    "rosybrown": "#bc8f8f",
+    "royalblue": "#4169e1",
+    "saddlebrown": "#8b4513",
+    "salmon": "#fa8072",
+    "sandybrown": "#f4a460",
+    "seagreen": "#2e8b57",
+    "seashell": "#fff5ee",
+    "sienna": "#a0522d",
+    "silver": "#c0c0c0",
+    "skyblue": "#87ceeb",
+    "slateblue": "#6a5acd",
+    "slategray": "#708090",
+    "slategrey": "#708090",
+    "snow": "#fffafa",
+    "springgreen": "#00ff7f",
+    "steelblue": "#4682b4",
+    "tan": "#d2b48c",
+    "teal": "#008080",
+    "thistle": "#d8bfd8",
+    "tomato": "#ff6347",
+    "turquoise": "#40e0d0",
+    "violet": "#ee82ee",
+    "wheat": "#f5deb3",
+    "white": "#ffffff",
+    "whitesmoke": "#f5f5f5",
+    "yellow": "#ffff00",
+    "yellowgreen": "#9acd32",
 }
 
 
@@ -69,6 +224,11 @@ def add_source_command(
         "--api-token-env",
         help="Env var for API token (used when resolving category title).",
     ),
+    color: str | None = typer.Option(
+        None,
+        "--color",
+        help="Optional feed color. Accepts hex (#RRGGBB or #RGB) or CSS color names.",
+    ),
 ) -> None:
     """Add or replace a source in the project config."""
     config_path = _normalize_config_path(config)
@@ -81,11 +241,21 @@ def add_source_command(
     )
 
     current = load_indico_config(config_path)
+    source_color = (
+        _normalize_source_color(color)
+        if color is not None
+        else _assign_unique_source_color(current.sources)
+    )
     filtered_sources = [
         source for source in current.sources if source.name != source_name
     ]
     filtered_sources.append(
-        IndicoSource(name=source_name, category_id=category_id, base_url=base_url)
+        IndicoSource(
+            name=source_name,
+            category_id=category_id,
+            base_url=base_url,
+            color=source_color,
+        )
     )
     save_indico_config(
         config_path,
@@ -108,7 +278,7 @@ def list_sources_command(
 
     for source in sorted(current.sources, key=lambda item: item.name):
         typer.echo(
-            f"{source.name}: category={source.category_id}, base_url={source.base_url}"
+            f"{source.name}: category={source.category_id}, base_url={source.base_url}, color={source.color}"
         )
 
 
@@ -213,24 +383,48 @@ def generate_sources_command(
             api_key_env=api_key_env,
             api_token_env=api_token_env,
         ):
+            interesting_contributions = _contributions_with_documents(
+                meeting.contributions
+            )
+            is_interesting_meeting = bool(meeting.documents or interesting_contributions)
+            summary_md = html_to_markdown(meeting.description) or ""
+            if meeting.url:
+                indico_link = f"[Link To Indico]({meeting.url})"
+                summary_md = (
+                    f"{indico_link}\n\n{summary_md.lstrip()}"
+                    if summary_md.strip()
+                    else indico_link
+                )
+            contribution_table = _build_contribution_table(meeting.contributions)
+            if contribution_table:
+                summary_md = (
+                    f"{summary_md.rstrip()}\n\n{contribution_table}"
+                    if summary_md.strip()
+                    else contribution_table
+                )
             event_doc: dict[str, object] = {
                 "id": f"{selected_source.name}-{meeting.remote_id}",
                 "type": "meeting",
                 "title": meeting.title,
                 "date": meeting.start_datetime.date().isoformat(),
-                "important": False,
-                "summary_md": html_to_markdown(meeting.description)
+                "important": is_interesting_meeting,
+                "short_label": _build_meeting_short_label(interesting_contributions),
+                "summary_md": summary_md
                 or f"Imported from source `{selected_source.name}`.",
                 "participants": meeting.participants,
-                "tags": [selected_source.name],
+                "tags": [],
                 "documents": [
-                    {"label": label, "url": url} for label, url in meeting.documents
+                    {
+                        "label": document.label,
+                        "url": document.url,
+                        "talk_title": document.talk_title,
+                        "speaker_names": document.speaker_names,
+                    }
+                    for document in meeting.documents
                 ],
+                "source_name": selected_source.name,
+                "source_color": selected_source.color,
             }
-            if meeting.url:
-                event_doc["documents"].append(
-                    {"label": "Event Link", "url": meeting.url}
-                )
             generated_events.append(event_doc)
 
     generated_events.sort(key=lambda item: (str(item["date"]), str(item["id"])))
@@ -351,6 +545,62 @@ def _parse_category_url(category_url: str) -> tuple[str, int]:
     return base_url, category_id
 
 
+def _normalize_source_color(value: str) -> str:
+    hex_color = _parse_color_to_hex(value)
+    pale_color = _blend_rgb(_hex_to_rgb(hex_color), 0.78)
+    return _rgb_to_hex(pale_color)
+
+
+def _assign_unique_source_color(existing_sources: list[IndicoSource]) -> str:
+    used_colors = {source.color.lower() for source in existing_sources}
+    golden_ratio = 0.61803398875
+    for index in range(1, 512):
+        hue = (index * golden_ratio) % 1.0
+        red, green, blue = hls_to_rgb(hue, 0.62, 0.55)
+        candidate = _rgb_to_hex(
+            _blend_rgb(
+                (round(red * 255), round(green * 255), round(blue * 255)),
+                0.78,
+            )
+        )
+        if candidate.lower() not in used_colors:
+            return candidate
+    raise typer.BadParameter("Unable to assign a unique source color.")
+
+
+def _parse_color_to_hex(value: str) -> str:
+    normalized = re.sub(r"\s+", "", value).lower()
+    if re.fullmatch(r"#[0-9a-f]{3}", normalized):
+        return "#" + "".join(component * 2 for component in normalized[1:])
+    if re.fullmatch(r"#[0-9a-f]{6}", normalized):
+        return normalized
+    named = NAMED_COLORS.get(normalized)
+    if named is not None:
+        return named
+    raise typer.BadParameter(
+        f"Unsupported color '{value}'. Use #RGB, #RRGGBB, or a CSS color name."
+    )
+
+
+def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+    return (
+        int(value[1:3], 16),
+        int(value[3:5], 16),
+        int(value[5:7], 16),
+    )
+
+
+def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+
+def _blend_rgb(rgb: tuple[int, int, int], weight_to_white: float) -> tuple[int, int, int]:
+    clamped_weight = max(0.0, min(1.0, weight_to_white))
+    return tuple(
+        round(channel + (255 - channel) * clamped_weight) for channel in rgb
+    )
+
+
 def _resolve_range(
     from_date: date | None,
     to_date: date | None,
@@ -406,3 +656,176 @@ def _select_sources(config: IndicoConfig, names: list[str]) -> list[IndicoSource
     if missing_sources:
         raise typer.BadParameter(f"Unknown source(s): {', '.join(missing_sources)}")
     return [source_lookup[name] for name in names]
+
+
+def _build_contribution_table(contributions: list[IndicoContribution]) -> str:
+    if not contributions:
+        return ""
+
+    rows = [
+        "| Talk | Speakers | Documents |",
+        "| --- | --- | --- |",
+    ]
+    for contribution in sorted(contributions, key=lambda item: item.sort_key):
+        authors = ", ".join(contribution.speaker_names) if contribution.speaker_names else "-"
+        if contribution.documents:
+            document_labels = _build_document_link_labels(contribution.documents)
+            documents = "<br>".join(
+                f"• [{_escape_markdown_table_cell(label)}]({document.url})"
+                for document, label in zip(contribution.documents, document_labels, strict=True)
+            )
+        else:
+            documents = "-"
+        rows.append(
+            "| "
+            + " | ".join(
+                [
+                    _escape_markdown_table_cell(_short_contribution_title(contribution)),
+                    _escape_markdown_table_cell(authors),
+                    documents.replace("|", "\\|"),
+                ]
+            )
+            + " |"
+        )
+    return "\n".join(rows)
+
+
+def _build_document_link_labels(documents: list[IndicoDocument]) -> list[str]:
+    if not documents:
+        return []
+    if len(documents) == 1:
+        return ["Talk"]
+
+    normalized_labels = [
+        re.sub(r"\s+", " ", document.label).strip() or f"Upload {index + 1}"
+        for index, document in enumerate(documents)
+    ]
+    return _compact_unique_labels(normalized_labels)
+
+
+def _compact_unique_labels(labels: list[str], *, initial_width: int = 20) -> list[str]:
+    if not labels:
+        return []
+
+    maximum_width = max(len(label) for label in labels)
+    minimum_width = min(initial_width, maximum_width)
+
+    for width in range(minimum_width, maximum_width + 1):
+        shortened = [label if len(label) <= width else label[:width] for label in labels]
+        if len(set(shortened)) != len(shortened):
+            continue
+
+        rolled_back = [
+            _roll_back_to_word_boundary(label, width) for label in labels
+        ]
+        if len(set(rolled_back)) == len(rolled_back):
+            return rolled_back
+
+        duplicates = {
+            value for value in rolled_back if rolled_back.count(value) > 1
+        }
+        return [
+            shortened[index] if value in duplicates else value
+            for index, value in enumerate(rolled_back)
+        ]
+
+    duplicate_counts: dict[str, int] = {}
+    unique_labels: list[str] = []
+    for label in labels:
+        count = duplicate_counts.get(label, 0) + 1
+        duplicate_counts[label] = count
+        unique_labels.append(label if count == 1 else f"{label} ({count})")
+    return unique_labels
+
+
+def _roll_back_to_word_boundary(value: str, width: int) -> str:
+    if len(value) <= width:
+        return value
+
+    truncated = value[:width]
+    last_space = truncated.rfind(" ")
+    if last_space <= 0:
+        return truncated
+    return truncated[:last_space]
+
+
+def _contributions_with_documents(
+    contributions: list[IndicoContribution],
+) -> list[IndicoContribution]:
+    return [
+        contribution for contribution in contributions if contribution.documents
+    ]
+
+
+def _build_meeting_short_label(
+    contributions: list[IndicoContribution],
+    *,
+    limit: int = 3,
+) -> str | None:
+    if not contributions:
+        return None
+
+    titles: list[str] = []
+    for contribution in sorted(contributions, key=lambda item: item.sort_key):
+        title = re.sub(r"\s+", " ", contribution.title).strip() or "Untitled talk"
+        if title not in titles:
+            titles.append(title)
+
+    if not titles:
+        return None
+
+    visible = titles[:limit]
+    remaining = len(titles) - len(visible)
+    summary = "; ".join(visible)
+    if remaining > 0:
+        summary = f"{summary}; +{remaining} more"
+    return summary
+
+
+def _escape_markdown_table_cell(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().replace("|", "\\|")
+
+
+def _short_contribution_title(contribution: IndicoContribution) -> str:
+    source = contribution.documents[0].label if contribution.documents else contribution.title
+    shortened = _short_title_from_label(source, contribution.speaker_names)
+    fallback = re.sub(r"\s+", " ", contribution.title).strip()
+    if _looks_like_identifier_title(shortened):
+        return fallback or shortened or "Untitled talk"
+    return shortened or fallback or "Untitled talk"
+
+
+def _short_title_from_label(label: str, speaker_names: list[str]) -> str:
+    stem = Path(label).stem
+    stem = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", stem)
+    stem = re.sub(r"[_-]+", " ", stem)
+    stem = re.sub(r"\b\d{6,8}\b", " ", stem)
+    stem = re.sub(r"\b(?:amgmeeting|amg)\b", " ", stem, flags=re.IGNORECASE)
+    stem = re.sub(r"\bcopy\b", " ", stem, flags=re.IGNORECASE)
+    stem = re.sub(r"\b\d+\b(?=\s*$)", " ", stem)
+    stem = re.sub(r"\s+", " ", stem).strip()
+
+    for speaker_name in speaker_names:
+        speaker_pattern = re.sub(r"\s+", " ", speaker_name).strip()
+        if not speaker_pattern:
+            continue
+        stem = re.sub(
+            rf"\b{re.escape(speaker_pattern)}\b\s*$",
+            "",
+            stem,
+            flags=re.IGNORECASE,
+        ).strip()
+
+    return re.sub(r"\s+", " ", stem).strip()
+
+
+def _looks_like_identifier_title(value: str) -> bool:
+    normalized = re.sub(r"\s+", " ", value).strip()
+    if not normalized:
+        return True
+    if re.fullmatch(r"[A-Z0-9!._/-]+", normalized):
+        return True
+    words = [word for word in re.split(r"\s+", normalized) if word]
+    if len(words) == 1 and len(re.findall(r"[A-Za-z]", normalized)) <= 8:
+        return True
+    return False

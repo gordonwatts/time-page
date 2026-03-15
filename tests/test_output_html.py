@@ -24,6 +24,8 @@ events:
     date: "2023-01-10"
     important: true
     summary_md: "# Heading"
+    source_name: "Analysis Model Group Meetings"
+    source_color: "#ffd6d6"
 """
 
 
@@ -38,6 +40,8 @@ def test_output_contains_inlined_assets_and_data(tmp_path: Path) -> None:
     assert '<script id="committee-data" type="application/json">' in text
     assert "Output Test" in text
     assert "timeline-item" in text
+    assert "Analysis Model Group Meetings" in text
+    assert "#ffd6d6" in text
 
 
 def test_output_does_not_escape_inline_script_and_json(tmp_path: Path) -> None:
@@ -50,3 +54,4 @@ def test_output_does_not_escape_inline_script_and_json(tmp_path: Path) -> None:
     assert "&#34;" not in text
     assert "(() => {" in text
     assert 'const root = document.getElementById("app");' in text
+    assert "selected.source_name" in text

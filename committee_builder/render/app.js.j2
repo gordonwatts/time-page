@@ -12,6 +12,14 @@
   }
 
   const state = { query: "", selectedId: data.events?.[0]?.id ?? null };
+  const namedPalette = {
+    sky: { background: "#e0f2fe", color: "#075985", border: "#bae6fd" },
+    emerald: { background: "#d1fae5", color: "#065f46", border: "#a7f3d0" },
+    rose: { background: "#ffe4e6", color: "#9f1239", border: "#fecdd3" },
+    amber: { background: "#fef3c7", color: "#92400e", border: "#fde68a" },
+    violet: { background: "#ede9fe", color: "#5b21b6", border: "#ddd6fe" },
+    slate: { background: "#e2e8f0", color: "#334155", border: "#cbd5e1" },
+  };
 
   function fmtDate(value) {
     const d = new Date(`${value}T12:00:00`);
@@ -26,6 +34,42 @@
   function getStyle(type) {
     const styles = data.event_type_styles || {};
     return styles[type] || { label: type, color: "slate" };
+  }
+
+  function hexToRgb(value) {
+    const normalized = String(value || "").trim();
+    const shortMatch = normalized.match(/^#([0-9a-f]{3})$/i);
+    if (shortMatch) {
+      const [r, g, b] = shortMatch[1].split("");
+      return [parseInt(r + r, 16), parseInt(g + g, 16), parseInt(b + b, 16)];
+    }
+    const longMatch = normalized.match(/^#([0-9a-f]{6})$/i);
+    if (!longMatch) return null;
+    const digits = longMatch[1];
+    return [
+      parseInt(digits.slice(0, 2), 16),
+      parseInt(digits.slice(2, 4), 16),
+      parseInt(digits.slice(4, 6), 16),
+    ];
+  }
+
+  function rgbToHex(rgb) {
+    return `#${rgb.map((value) => Math.max(0, Math.min(255, value)).toString(16).padStart(2, "0")).join("")}`;
+  }
+
+  function mix(rgb, target, weight) {
+    return rgb.map((value, index) => Math.round(value + (target[index] - value) * weight));
+  }
+
+  function buildTone(value) {
+    if (namedPalette[value]) return namedPalette[value];
+    const rgb = hexToRgb(value);
+    if (!rgb) return namedPalette.slate;
+    return {
+      background: rgbToHex(rgb),
+      color: "#0f172a",
+      border: rgbToHex(mix(rgb, [15, 23, 42], 0.14)),
+    };
   }
 
   function eventMatches(event, query) {
@@ -56,7 +100,109 @@
       .replaceAll("'", "&#039;");
   }
 
+  function styleAttr(tone) {
+    return `style="background:${esc(tone.background)};color:${esc(tone.color)};border-color:${esc(tone.border)}"`;
+  }
+
+  function dotStyleAttr(tone) {
+    return `style="background:${esc(tone.background)};border-color:${esc(tone.border)}"`;
+  }
+
+  function renderPill(label, color, extraClass = "") {
+    const tone = buildTone(color);
+    const className = extraClass ? `pill ${extraClass}` : "pill";
+    return `<span class="${esc(className)}" ${styleAttr(tone)}>${esc(label)}</span>`;
+  }
+
+  function renderDoc(doc) {
+    return doc.url
+      ? `<a href="${esc(doc.url)}" target="_blank" rel="noopener noreferrer">${esc(doc.label)}</a>`
+      : esc(doc.label);
+  }
+
+  function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function looksLikeIdentifierTitle(value) {
+    const normalized = String(value).replace(/\s+/g, " ").trim();
+    if (!normalized) return true;
+    if (/^[A-Z0-9!._/-]+$/.test(normalized)) return true;
+    const letters = (normalized.match(/[A-Za-z]/g) || []).length;
+    const words = normalized.split(/\s+/).filter(Boolean);
+    return words.length === 1 && letters <= 8;
+  }
+
+  function shortTalkTitle(group) {
+    const source = group.docs?.[0]?.label || group.talkTitle || "";
+    let value = String(source).replace(/\.[^.]+$/, "");
+    value = value.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+    value = value.replace(/[_-]+/g, " ");
+    value = value.replace(/\b\d{6,8}\b/g, " ");
+    value = value.replace(/\b(?:amgmeeting|amg)\b/gi, " ");
+    value = value.replace(/\bcopy\b/gi, " ");
+    value = value.replace(/\b\d+\b\s*$/g, " ");
+    for (const speaker of group.speakers || []) {
+      const pattern = new RegExp(`\\b${escapeRegExp(speaker)}\\b\\s*$`, "i");
+      value = value.replace(pattern, "").trim();
+    }
+    value = value.replace(/\s+/g, " ").trim();
+    if (looksLikeIdentifierTitle(value)) {
+      return group.talkTitle || value || source || "Untitled talk";
+    }
+    return value || group.talkTitle || source || "Untitled talk";
+  }
+
+  function groupDocuments(documents) {
+    const groups = [];
+    const lookup = new Map();
+    for (const doc of documents || []) {
+      if (!doc.talk_title && !(doc.speaker_names || []).length) {
+        groups.push({ kind: "single", doc });
+        continue;
+      }
+      const speakers = doc.speaker_names || [];
+      const key = `${doc.talk_title || ""}::${speakers.join("|")}`;
+      if (!lookup.has(key)) {
+        const group = { kind: "talk", talkTitle: doc.talk_title || "", speakers, docs: [] };
+        lookup.set(key, group);
+        groups.push(group);
+      }
+      lookup.get(key).docs.push(doc);
+    }
+    return groups;
+  }
+
+  function renderDocumentGroups(documents) {
+    return groupDocuments(documents).map((group) => {
+      if (group.kind === "single") {
+        return `<li>${renderDoc(group.doc)}</li>`;
+      }
+      const speakerLine = group.speakers.length ? `<span class="muted-text">${esc(group.speakers.join(", "))}</span>` : "";
+      const files = group.docs.map((doc) => `<li>${renderDoc(doc)}</li>`).join("");
+      return `
+        <li class="document-item">
+          <div class="document-meta">
+            <strong>${esc(shortTalkTitle(group))}</strong>
+            ${speakerLine}
+          </div>
+          <ul class="document-sublist">${files}</ul>
+        </li>
+      `;
+    }).join("");
+  }
+
+  function isEditableTarget(target) {
+    if (!(target instanceof HTMLElement)) return false;
+    const tagName = target.tagName;
+    return target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
+  }
+
   function render() {
+    const activeElement = document.activeElement;
+    const searchWasFocused = activeElement?.id === "search";
+    const searchSelectionStart = searchWasFocused ? activeElement.selectionStart : null;
+    const searchSelectionEnd = searchWasFocused ? activeElement.selectionEnd : null;
     const events = (data.events || []).filter((e) => eventMatches(e, state.query));
     const selected = events.find((e) => e.id === state.selectedId) || events[0] || data.events?.[0];
     if (selected) state.selectedId = selected.id;
@@ -65,6 +211,7 @@
     const committee = data.committee || {};
     const start = committee.start_date ? fmtDate(committee.start_date) : "";
     const end = committee.end_date ? fmtDate(committee.end_date) : "Present";
+    const todayKey = new Date().toISOString().slice(0, 10);
 
     root.innerHTML = `
       <div class="page">
@@ -74,8 +221,6 @@
             <p class="subtitle">${esc(committee.subtitle || "")}</p>
             <div class="chips">
               <span class="chip">${esc(start)} -> ${esc(end)}</span>
-              <span class="chip">Static standalone HTML</span>
-              <span class="chip">Markdown summaries</span>
             </div>
           </div>
           <label class="search"><span>Search</span><input id="search" value="${esc(state.query)}" placeholder="Search events, participants, tags..." /></label>
@@ -96,17 +241,18 @@
     }
 
     const selectedStyle = getStyle(selected.type);
-    const docs = (selected.documents || []).map((doc) => doc.url
-      ? `<li><a href="${esc(doc.url)}" target="_blank" rel="noopener noreferrer">${esc(doc.label)}</a></li>`
-      : `<li>${esc(doc.label)}</li>`).join("");
+    const docs = renderDocumentGroups(selected.documents || []);
     const participants = (selected.participants || []).map((p) => `<span class="chip">${esc(p)}</span>`).join("");
     const tags = (selected.tags || []).map((t) => `<span class="chip muted">${esc(t)}</span>`).join("");
+    const selectedSourcePill = selected.source_name && selected.source_color
+      ? renderPill(selected.source_name, selected.source_color)
+      : "";
 
     detail.innerHTML = `
-      <div class="panel-header"><h2>Selected entry</h2><span class="pill color-${esc(selectedStyle.color)}">${esc(selectedStyle.label)}</span></div>
+      <div class="panel-header"><h2>Selected Entry</h2><div class="panel-pills">${renderPill(selectedStyle.label, selectedStyle.color)}${selectedSourcePill}</div></div>
       <article>
         <h3>${esc(selected.title)}</h3>
-        <div class="meta">${esc(fmtDate(selected.date))}${selected.important ? " • major event" : ""}</div>
+        <div class="meta">${esc(fmtDate(selected.date))}${selected.important ? " · major event" : ""}</div>
         <section class="summary">${selected.summary_html || ""}</section>
         <section><h4>Participants</h4><div class="chips">${participants || "<span class='muted-text'>None</span>"}</div></section>
         <section><h4>Documents</h4><ul>${docs || "<li class='muted-text'>None</li>"}</ul></section>
@@ -114,21 +260,40 @@
       </article>
     `;
 
-    let timelineHtml = `<div class="panel-header"><h2>Committee timeline</h2></div><p class="muted-text">Major moments are expanded; routine entries stay compact.</p><div class="timeline-list">`;
+    let dividerInserted = false;
+    let timelineHtml = `<div class="panel-header"><h2>Timeline</h2></div><div class="timeline-list">`;
     for (const [year, list] of years) {
       timelineHtml += `<div class="year-block"><div class="year">${esc(year)}</div>`;
       for (const event of list) {
         const style = getStyle(event.type);
+        const tone = buildTone(style.color);
         const isMajor = Boolean(event.important);
         const isSelected = selected.id === event.id;
         const cls = isMajor ? "timeline-item major" : "timeline-item minor";
+        const sourcePill = event.source_name && event.source_color
+          ? renderPill(event.source_name, event.source_color, "small")
+          : "";
+        if (!dividerInserted && event.date >= todayKey) {
+          timelineHtml += `
+            <div class="timeline-divider" aria-hidden="true">
+              <span class="timeline-divider-line"></span>
+              <span class="timeline-divider-pill">Future</span>
+            </div>
+          `;
+          dividerInserted = true;
+        }
         timelineHtml += `
-          <button class="${cls}${isSelected ? " selected" : ""}" data-event-id="${esc(event.id)}" title="${esc(event.title)} • ${esc(fmtDate(event.date))} • ${esc(style.label)}">
-            <span class="dot color-${esc(style.color)}"></span>
-            <span class="date">${esc(isMajor ? fmtDate(event.date) : fmtCompactDate(event.date))}</span>
-            <span class="title">${esc(event.title)}</span>
-            <span class="pill small color-${esc(style.color)}">${esc(style.label)}</span>
-            ${isMajor ? `<span class="short">${esc(event.short_label || event.title)}</span>` : ""}
+          <button class="${cls}${isSelected ? " selected" : ""}" data-event-id="${esc(event.id)}" title="${esc(event.title)} · ${esc(fmtDate(event.date))} · ${esc(style.label)}">
+            <span class="timeline-rail">
+              <span class="dot" ${dotStyleAttr(tone)}></span>
+              <span class="connector"></span>
+            </span>
+            <span class="timeline-content">
+              <span class="date">${esc(isMajor ? fmtDate(event.date) : fmtCompactDate(event.date))}</span>
+              <span class="title">${esc(event.title)}</span>
+              <span class="timeline-pills">${renderPill(style.label, style.color, "small")}${sourcePill}</span>
+              ${isMajor ? `<span class="short">${esc(event.short_label || event.title)}</span>` : ""}
+            </span>
           </button>
         `;
       }
@@ -139,10 +304,27 @@
 
     const search = root.querySelector("#search");
     search?.addEventListener("input", (ev) => { state.query = ev.target.value; render(); });
+    if (searchWasFocused && search) {
+      search.focus();
+      if (searchSelectionStart !== null && searchSelectionEnd !== null) {
+        search.setSelectionRange(searchSelectionStart, searchSelectionEnd);
+      }
+    }
     timeline.querySelectorAll("[data-event-id]").forEach((el) => {
       el.addEventListener("click", () => { state.selectedId = el.getAttribute("data-event-id"); render(); });
     });
   }
 
   render();
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (isEditableTarget(event.target)) return;
+    const search = root.querySelector("#search");
+    if (!search) return;
+    event.preventDefault();
+    search.focus();
+    const valueLength = search.value.length;
+    search.setSelectionRange(valueLength, valueLength);
+  });
 })();
