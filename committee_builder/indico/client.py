@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import html
 import hmac
+import logging
 import os
 import re
 import time
@@ -17,6 +18,8 @@ import requests
 
 from committee_builder.indico.config import IndicoSource
 from committee_builder.indico.credentials import normalize_base_url, resolve_stored_api_key
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -66,6 +69,13 @@ def fetch_meetings(
     api_token_env: str = "INDICO_API_TOKEN",
 ) -> list[IndicoMeeting]:
     """Fetch meetings for a source and normalize payloads."""
+    logger.debug(
+        "Fetching category export for source=%s category_id=%s range=%s..%s",
+        source.name,
+        source.category_id,
+        start_date.isoformat(),
+        end_date.isoformat(),
+    )
     payload = _fetch_category_export(
         base_url=source.base_url,
         category_id=source.category_id,
@@ -76,6 +86,11 @@ def fetch_meetings(
         },
         api_key_env=api_key_env,
         api_token_env=api_token_env,
+    )
+    logger.debug(
+        "Category export returned %s meeting records and %s category paths",
+        len(payload.get("results", [])),
+        len(payload.get("additionalInfo", {}).get("eventCategories", [])),
     )
     meetings = [_normalize_record(record) for record in payload.get("results", [])]
     return [
@@ -156,6 +171,12 @@ def _fetch_category_export(
         },
     )
     response.raise_for_status()
+    logger.debug(
+        "Fetched category export %s status=%s bytes=%s",
+        response.url,
+        response.status_code,
+        len(response.content),
+    )
     return response.json()
 
 
@@ -187,6 +208,12 @@ def _fetch_event_export(
         },
     )
     response.raise_for_status()
+    logger.debug(
+        "Fetched event export %s status=%s bytes=%s",
+        response.url,
+        response.status_code,
+        len(response.content),
+    )
     return response.json()
 
 
@@ -210,6 +237,12 @@ def _fetch_category_page_title(
         },
     )
     response.raise_for_status()
+    logger.debug(
+        "Fetched category page %s status=%s bytes=%s",
+        response.url,
+        response.status_code,
+        len(response.content),
+    )
 
     h1_match = re.search(
         r'<h1 class="category-title">\s*(?:<[^>]+>\s*)*(.*?)\s*(?:</[^>]+>\s*)*</h1>',
@@ -251,6 +284,12 @@ def _fetch_event_page(
         },
     )
     response.raise_for_status()
+    logger.debug(
+        "Fetched event page %s status=%s bytes=%s",
+        response.url,
+        response.status_code,
+        len(response.content),
+    )
     return response.text
 
 
@@ -270,9 +309,11 @@ def _build_auth(
     api_key = explicit_api_key
     api_token = explicit_api_token or stored_api_token
     if not api_key and not api_token:
+        logger.debug("No Indico auth configured for base_url=%s", base_url)
         return {"params": {}, "headers": {}}
 
     if api_key and api_token:
+        logger.debug("Using signed Indico API auth for base_url=%s", base_url)
         timestamp = str(int(time.time()))
         signed_params = dict(params)
         signed_params["ak"] = api_key
@@ -285,8 +326,10 @@ def _build_auth(
         return {"params": signed_params, "headers": {}}
 
     if api_key:
+        logger.debug("Using API key query auth for base_url=%s", base_url)
         return {"params": {"ak": api_key}, "headers": {}}
 
+    logger.debug("Using bearer token auth for base_url=%s", base_url)
     return {"params": {}, "headers": {"Authorization": f"Bearer {api_token}"}}
 
 
@@ -365,6 +408,12 @@ def _hydrate_meeting_participants(
     if meeting.url is None:
         return meeting
 
+    logger.debug(
+        "Hydrating meeting remote_id=%s title=%r url=%s",
+        meeting.remote_id,
+        meeting.title,
+        meeting.url,
+    )
     parsed_url = urlsplit(meeting.url)
     base_url = _base_url_from_request_url(meeting.url)
     payload = _fetch_event_export(
@@ -376,17 +425,19 @@ def _hydrate_meeting_participants(
     )
     results = payload.get("results", [])
     if not results:
+        logger.debug("Event export had no results for remote_id=%s", meeting.remote_id)
         return meeting
 
     participants = _dedupe_names(
         [*meeting.participants, *_extract_participants(results[0])]
     )
+    event_page_html = _fetch_event_page(
+        meeting.url,
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
     documents = _extract_documents(
-        _fetch_event_page(
-            meeting.url,
-            api_key_env=api_key_env,
-            api_token_env=api_token_env,
-        ),
+        event_page_html,
         base_url=base_url,
     )
     contributions = _extract_contributions(results[0], base_url=base_url)
@@ -395,12 +446,32 @@ def _hydrate_meeting_participants(
         for contribution in contributions
         for document in contribution.documents
     ]
+    minutes_html = _extract_minutes(results[0]) or meeting.minutes
+    minutes_image_count = len(
+        re.findall(r"<img\b", minutes_html, flags=re.IGNORECASE)
+    ) if minutes_html else 0
+    page_attachment_count = len(
+        re.findall(r"/attachments/", event_page_html, flags=re.IGNORECASE)
+    )
+    logger.debug(
+        (
+            "Hydrated remote_id=%s participants=%s documents=%s contributions=%s "
+            "minutes_chars=%s minutes_images=%s page_attachment_refs=%s"
+        ),
+        meeting.remote_id,
+        len(participants),
+        len(documents),
+        len(contributions),
+        len(minutes_html),
+        minutes_image_count,
+        page_attachment_count,
+    )
     return IndicoMeeting(
         remote_id=meeting.remote_id,
         title=meeting.title,
         start_datetime=meeting.start_datetime,
         description=meeting.description,
-        minutes=_extract_minutes(results[0]) or meeting.minutes,
+        minutes=minutes_html,
         participants=participants,
         documents=_merge_documents(contribution_documents, documents),
         contributions=contributions,

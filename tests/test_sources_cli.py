@@ -850,6 +850,9 @@ def test_fetch_category_page_title_reads_standard_indico_title(
 ) -> None:
     class FakeResponse:
         text = "<html><head><title>Long Lived Particle Forum · Indico</title></head></html>"
+        url = "https://indico.cern.ch/category/2636/"
+        status_code = 200
+        content = text.encode("utf-8")
 
         def raise_for_status(self) -> None:
             return None
@@ -881,6 +884,9 @@ def test_fetch_category_page_title_accepts_mojibake_middle_dot(
 ) -> None:
     class FakeResponse:
         text = "<html><head><title>Long Lived Particle Forum Â· Indico</title></head></html>"
+        url = "https://indico.cern.ch/category/2636/"
+        status_code = 200
+        content = text.encode("utf-8")
 
         def raise_for_status(self) -> None:
             return None
