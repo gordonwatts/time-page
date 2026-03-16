@@ -96,7 +96,7 @@ committee build data/committee.history.yaml --output dist/committee-history.html
 - `committee indico remove CONFIG NAME`
 - `committee indico generate CONFIG PROJECT_YAML --from YYYY-MM-DD --to YYYY-MM-DD [--api-key-env ENV] [--api-token-env ENV] [--output PATH]`
 
-### Indico source workflow
+### Indico category workflow
 
 The Indico commands use the standard HTTP export API. Public categories work without credentials; if API credentials are present they are used automatically.
 
@@ -104,13 +104,13 @@ The Indico commands use the standard HTTP export API. Public categories work wit
 pip install -e .
 ```
 
-Configure a source:
+Configure a category:
 
 ```bash
 committee indico add cern https://indico.example.org/category/1234/ --title cern --color red
 ```
 
-If `--color` is omitted, the CLI assigns a unique pale hex color automatically. Named CSS colors and hex values are normalized to stored `#RRGGBB` source colors.
+If `--color` is omitted, the CLI assigns a unique pale hex color automatically. Named CSS colors and hex values are normalized to stored `#RRGGBB` category colors.
 
 Generate meeting events into a new YAML file:
 

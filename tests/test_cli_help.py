@@ -35,3 +35,5 @@ def test_indico_help_has_api_key_command() -> None:
     result = runner.invoke(app, ["indico", "--help"])
     assert result.exit_code == 0
     assert "api-key" in result.stdout
+    assert "Indico categories" in result.stdout
+    assert "Add an Indico category" in result.stdout
