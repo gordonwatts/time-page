@@ -1226,9 +1226,24 @@ def test_merge_documents_prefers_contextual_entry_for_same_label() -> None:
     ]
 
 
-def test_short_contribution_title_uses_cleaned_filename() -> None:
+def test_short_contribution_title_prefers_indico_contribution_title() -> None:
     contribution = IndicoContribution(
         title="Lossy compression for FTAG branches",
+        speaker_names=["Romain Bouquet"],
+        documents=[
+            IndicoDocument(
+                label="AMGMeeting_LossyCompressionStudiesInFTAG_20260227_RomainBouquet-1.pdf",
+                url="https://example.org/slides.pdf",
+            )
+        ],
+    )
+
+    assert _short_contribution_title(contribution) == "Lossy compression for FTAG branches"
+
+
+def test_short_contribution_title_falls_back_to_cleaned_filename() -> None:
+    contribution = IndicoContribution(
+        title="",
         speaker_names=["Romain Bouquet"],
         documents=[
             IndicoDocument(
