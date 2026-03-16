@@ -11,7 +11,12 @@
     return;
   }
 
-  const state = { query: "", selectedId: data.events?.[0]?.id ?? null };
+  const storageKey = `committee-history:${window.location.pathname}:${data.committee?.name || "default"}`;
+  const state = {
+    query: "",
+    selectedId: data.events?.[0]?.id ?? null,
+    timelineScrollTop: 0,
+  };
   const namedPalette = {
     sky: { background: "#e0f2fe", color: "#075985", border: "#bae6fd" },
     emerald: { background: "#d1fae5", color: "#065f46", border: "#a7f3d0" },
@@ -223,7 +228,35 @@
     return target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
   }
 
+  function loadState() {
+    try {
+      const raw = window.sessionStorage.getItem(storageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (typeof saved.query === "string") state.query = saved.query;
+      if (typeof saved.selectedId === "string" && saved.selectedId) state.selectedId = saved.selectedId;
+      if (Number.isFinite(saved.timelineScrollTop)) state.timelineScrollTop = saved.timelineScrollTop;
+    } catch {}
+  }
+
+  function persistState() {
+    try {
+      window.sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          query: state.query,
+          selectedId: state.selectedId,
+          timelineScrollTop: state.timelineScrollTop,
+        }),
+      );
+    } catch {}
+  }
+
   function render() {
+    const previousTimeline = root.querySelector("#timeline");
+    if (previousTimeline) {
+      state.timelineScrollTop = previousTimeline.scrollTop;
+    }
     const activeElement = document.activeElement;
     const searchWasFocused = activeElement?.id === "search";
     const searchSelectionStart = searchWasFocused ? activeElement.selectionStart : null;
@@ -338,21 +371,43 @@
     }
     timelineHtml += "</div>";
     timeline.innerHTML = timelineHtml;
+    timeline.scrollTop = state.timelineScrollTop;
 
     const search = root.querySelector("#search");
-    search?.addEventListener("input", (ev) => { state.query = ev.target.value; render(); });
+    search?.addEventListener("input", (ev) => {
+      state.query = ev.target.value;
+      persistState();
+      render();
+    });
     if (searchWasFocused && search) {
       search.focus();
       if (searchSelectionStart !== null && searchSelectionEnd !== null) {
         search.setSelectionRange(searchSelectionStart, searchSelectionEnd);
       }
     }
+    timeline.addEventListener("scroll", () => {
+      state.timelineScrollTop = timeline.scrollTop;
+      persistState();
+    }, { passive: true });
     timeline.querySelectorAll("[data-event-id]").forEach((el) => {
-      el.addEventListener("click", () => { state.selectedId = el.getAttribute("data-event-id"); render(); });
+      el.addEventListener("click", () => {
+        state.selectedId = el.getAttribute("data-event-id");
+        state.timelineScrollTop = timeline.scrollTop;
+        persistState();
+        render();
+      });
     });
+    persistState();
   }
 
+  loadState();
   render();
+
+  window.addEventListener("pagehide", () => {
+    const timeline = root.querySelector("#timeline");
+    if (timeline) state.timelineScrollTop = timeline.scrollTop;
+    persistState();
+  });
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return;
