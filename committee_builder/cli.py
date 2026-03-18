@@ -69,12 +69,12 @@ app.command("import-md", help="Placeholder for future markdown import workflow."
 )
 
 indico_app = typer.Typer(
-    help="Manage Indico category sources and generate imported meetings."
+    help="Manage Indico categories and generate imported meetings."
 )
-indico_app.command("add", help="Add an Indico source to the project config.")(
+indico_app.command("add", help="Add an Indico category to the project config.")(
     add_source_command
 )
-indico_app.command("list", help="List configured Indico sources.")(
+indico_app.command("list", help="List configured Indico categories.")(
     list_sources_command
 )
 indico_app.command(
@@ -87,10 +87,10 @@ indico_app.command(
         "site base URL, for example https://indico.cern.ch for CERN."
     ),
 )(api_key_command)
-indico_app.command("remove", help="Remove an Indico source from the config.")(
+indico_app.command("remove", help="Remove an Indico category from the config.")(
     remove_source_command
 )
-indico_app.command("generate", help="Generate meetings YAML from configured sources.")(
+indico_app.command("generate", help="Generate meetings YAML from configured categories.")(
     generate_sources_command
 )
 
