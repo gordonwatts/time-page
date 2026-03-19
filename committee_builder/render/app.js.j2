@@ -144,7 +144,12 @@
   }
 
   function shortTalkTitle(group) {
-    const source = group.docs?.[0]?.label || group.talkTitle || "";
+    const normalizedTalkTitle = String(group.talkTitle || "").replace(/\s+/g, " ").trim();
+    if (normalizedTalkTitle) {
+      return normalizedTalkTitle;
+    }
+
+    const source = group.docs?.[0]?.label || "";
     let value = String(source).replace(/\.[^.]+$/, "");
     value = value.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
     value = value.replace(/[_-]+/g, " ");
@@ -157,10 +162,7 @@
       value = value.replace(pattern, "").trim();
     }
     value = value.replace(/\s+/g, " ").trim();
-    if (looksLikeIdentifierTitle(value)) {
-      return group.talkTitle || value || source || "Untitled talk";
-    }
-    return value || group.talkTitle || source || "Untitled talk";
+    return value || source || "Untitled talk";
   }
 
   function groupDocuments(documents) {
