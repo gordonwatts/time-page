@@ -19,6 +19,7 @@ class IndicoSource(BaseModel):
     category_id: int
     base_url: str = Field(min_length=1)
     color: str = Field(min_length=1)
+    title_matches: list[str] = Field(default_factory=list)
 
 
 class IndicoConfig(BaseModel):
@@ -42,4 +43,7 @@ def save_indico_config(path: Path, config: IndicoConfig) -> None:
     """Persist config to disk in a deterministic order."""
     serialized = config.model_dump(mode="json")
     serialized["sources"] = sorted(serialized["sources"], key=lambda item: item["name"])
+    for source in serialized["sources"]:
+        if not source.get("title_matches"):
+            source.pop("title_matches", None)
     write_yaml(path, serialized)
