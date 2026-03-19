@@ -833,14 +833,15 @@ def _escape_markdown_table_cell(value: str) -> str:
 
 
 def _short_contribution_title(contribution: IndicoContribution) -> str:
-    fallback = re.sub(r"\s+", " ", contribution.title).strip()
-    if fallback:
-        return fallback
+    normalized_title = re.sub(r"\s+", " ", contribution.title).strip()
+    if normalized_title:
+        return normalized_title
 
-    source = contribution.documents[0].label if contribution.documents else contribution.title
+    if not contribution.documents:
+        return "Untitled talk"
+
+    source = contribution.documents[0].label
     shortened = _short_title_from_label(source, contribution.speaker_names)
-    if _looks_like_identifier_title(shortened):
-        return shortened or "Untitled talk"
     return shortened or "Untitled talk"
 
 

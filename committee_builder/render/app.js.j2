@@ -162,9 +162,6 @@
       value = value.replace(pattern, "").trim();
     }
     value = value.replace(/\s+/g, " ").trim();
-    if (looksLikeIdentifierTitle(value)) {
-      return value || source || "Untitled talk";
-    }
     return value || source || "Untitled talk";
   }
 

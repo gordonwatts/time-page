@@ -1256,6 +1256,12 @@ def test_short_contribution_title_falls_back_to_cleaned_filename() -> None:
     assert _short_contribution_title(contribution) == "Lossy Compression Studies In FTAG"
 
 
+def test_short_contribution_title_uses_placeholder_without_title_or_documents() -> None:
+    contribution = IndicoContribution(title="", speaker_names=["Romain Bouquet"], documents=[])
+
+    assert _short_contribution_title(contribution) == "Untitled talk"
+
+
 def test_build_document_link_labels_uses_talk_for_single_upload() -> None:
     labels = _build_document_link_labels(
         [IndicoDocument(label="Very long filename.pdf", url="https://example.org/slides.pdf")]
