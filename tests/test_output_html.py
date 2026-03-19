@@ -50,6 +50,8 @@ def test_output_contains_inlined_assets_and_data(tmp_path: Path) -> None:
     assert "timeline-item" in text
     assert "Analysis Model Group Meetings" in text
     assert "#ffd6d6" in text
+    assert 'class="search-clear${showClearSearch ? "" : " hidden"}"' in text
+    assert 'aria-label="Clear search"' in text
     assert '"minutes_html":' in text
     assert "Approved" in text
     assert '"title": "Detector status"' in text
@@ -66,4 +68,5 @@ def test_output_does_not_escape_inline_script_and_json(tmp_path: Path) -> None:
     assert "&#34;" not in text
     assert "(() => {" in text
     assert 'const root = document.getElementById("app");' in text
+    assert "searchClear?.addEventListener(\"click\"" in text
     assert "selected.source_name" in text

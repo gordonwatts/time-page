@@ -263,6 +263,7 @@
     const searchWasFocused = activeElement?.id === "search";
     const searchSelectionStart = searchWasFocused ? activeElement.selectionStart : null;
     const searchSelectionEnd = searchWasFocused ? activeElement.selectionEnd : null;
+    const showClearSearch = state.query.trim().length > 0;
     const events = (data.events || []).filter((e) => eventMatches(e, state.query));
     const selected = events.find((e) => e.id === state.selectedId) || events[0] || data.events?.[0];
     if (selected) state.selectedId = selected.id;
@@ -283,7 +284,19 @@
               <span class="chip">${esc(start)} -> ${esc(end)}</span>
             </div>
           </div>
-          <label class="search"><span>Search</span><input id="search" value="${esc(state.query)}" placeholder="Search events, participants, tags..." /></label>
+          <label class="search">
+            <span>Search</span>
+            <div class="search-row">
+              <input id="search" value="${esc(state.query)}" placeholder="Search events, participants, tags..." />
+              <button
+                type="button"
+                class="search-clear${showClearSearch ? "" : " hidden"}"
+                aria-label="Clear search"
+                title="Clear search"
+                ${showClearSearch ? "" : "tabindex=\"-1\" aria-hidden=\"true\""}
+              >x</button>
+            </div>
+          </label>
         </header>
         <main class="split">
           <section class="card panel detail" id="detail"></section>
@@ -376,10 +389,18 @@
     timeline.scrollTop = state.timelineScrollTop;
 
     const search = root.querySelector("#search");
+    const searchClear = root.querySelector(".search-clear");
     search?.addEventListener("input", (ev) => {
       state.query = ev.target.value;
       persistState();
       render();
+    });
+    searchClear?.addEventListener("click", () => {
+      state.query = "";
+      persistState();
+      render();
+      const nextSearch = root.querySelector("#search");
+      nextSearch?.focus();
     });
     if (searchWasFocused && search) {
       search.focus();
