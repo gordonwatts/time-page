@@ -13,7 +13,7 @@ body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: var(-
 .hero { padding: 20px; display: flex; gap: 16px; justify-content: space-between; align-items: flex-end; }
 h1 { margin: 0; font-size: 1.8rem; }
 .subtitle { margin: 8px 0 0; color: var(--muted); }
-.search { display: grid; gap: 6px; min-width: 280px; font-size: 0.85rem; color: var(--muted); }
+.search { display: grid; gap: 6px; min-width: 328px; font-size: 0.85rem; color: var(--muted); }
 .search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 input { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 0.95rem; }
 .search-clear { width: 2.5rem; height: 2.5rem; border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--muted); font-size: 1rem; line-height: 1; cursor: pointer; }
