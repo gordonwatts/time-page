@@ -122,6 +122,129 @@ def test_indico_add_accumulates_title_matches() -> None:
         assert "title_matches=[LUP, Plenary]" in list_result.stdout
 
 
+def test_indico_add_accumulates_title_exclude_patterns() -> None:
+    with runner.isolated_filesystem():
+        config = Path("project")
+
+        first_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config),
+                "https://indico.example.com/category/42/",
+                "--title",
+                "cern",
+                "--title-exclude",
+                "high school",
+            ],
+        )
+        second_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config),
+                "https://indico.example.com/category/42/",
+                "--title",
+                "cern",
+                "--title-exclude",
+                "plenary",
+            ],
+        )
+
+        assert first_result.exit_code == 0
+        assert second_result.exit_code == 0
+
+        config_data = load_indico_config(config.with_suffix(".yaml"))
+        assert config_data.sources[0].title_exclude_patterns == [
+            "high school",
+            "plenary",
+        ]
+
+        list_result = runner.invoke(app, ["indico", "list", str(config)])
+        assert list_result.exit_code == 0
+        assert "title_exclude=[high school, plenary]" in list_result.stdout
+
+
+def test_indico_generate_skips_meetings_matching_title_excludes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        project_path = Path("project.yaml")
+        project_path.write_text(BASE_PROJECT, encoding="utf-8")
+
+        config_path = Path("sources")
+        add_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config_path),
+                "https://indico.example.com/category/11/",
+                "--title",
+                "atlas",
+                "--title-exclude",
+                "high school",
+            ],
+        )
+        assert add_result.exit_code == 0
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> list[IndicoMeeting]:
+            return [
+                IndicoMeeting(
+                    remote_id="1001",
+                    title="High School Meeting",
+                    start_datetime=datetime(2024, 5, 10, 9, 30),
+                    description="Excluded agenda",
+                    participants=["Jane Doe"],
+                    documents=[],
+                    contributions=[],
+                    url="https://indico.example.com/event/1001",
+                ),
+                IndicoMeeting(
+                    remote_id="1002",
+                    title="Weekly Coordination",
+                    start_datetime=datetime(2024, 5, 11, 9, 30),
+                    description="Imported agenda",
+                    participants=["John Roe"],
+                    documents=[],
+                    contributions=[],
+                    url="https://indico.example.com/event/1002",
+                ),
+            ]
+
+        monkeypatch.setattr(
+            "committee_builder.commands.sources.fetch_meetings", fake_fetch
+        )
+
+        output_path = Path("generated.yaml")
+        result = runner.invoke(
+            app,
+            [
+                "indico",
+                "generate",
+                str(config_path),
+                str(project_path),
+                "--from",
+                "2024-05-01",
+                "--to",
+                "2024-05-31",
+                "--output",
+                str(output_path),
+            ],
+        )
+        assert result.exit_code == 0
+
+        rendered = output_path.read_text(encoding="utf-8")
+        parsed = yaml.safe_load(rendered)
+        assert [event["title"] for event in parsed["events"]] == [
+            "Weekly Coordination"
+        ]
+        assert "High School Meeting" not in rendered
+        assert "Weekly Coordination" in rendered
+
+
 def test_indico_api_key_creates_and_updates_local_dotenv() -> None:
     with runner.isolated_filesystem():
         base_url = "https://indico.example.com/indico/"

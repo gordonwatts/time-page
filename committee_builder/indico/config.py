@@ -20,6 +20,7 @@ class IndicoSource(BaseModel):
     base_url: str = Field(min_length=1)
     color: str = Field(min_length=1)
     title_matches: list[str] = Field(default_factory=list)
+    title_exclude_patterns: list[str] = Field(default_factory=list)
 
 
 class IndicoConfig(BaseModel):
@@ -46,4 +47,6 @@ def save_indico_config(path: Path, config: IndicoConfig) -> None:
     for source in serialized["sources"]:
         if not source.get("title_matches"):
             source.pop("title_matches", None)
+        if not source.get("title_exclude_patterns"):
+            source.pop("title_exclude_patterns", None)
     write_yaml(path, serialized)
