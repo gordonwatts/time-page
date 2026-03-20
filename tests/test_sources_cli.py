@@ -1562,8 +1562,5 @@ def test_compact_unique_labels_reverts_colliding_word_boundary_rollbacks() -> No
     assert labels == ["Alpha beta one file.", "Alpha beta one note.", "Gamma delta report"]
 
 
-def test_indico_client_dummy_without_dependency() -> None:
-    """Dummy test to ensure environments without indico-client still pass test suite."""
-    pytest.importorskip("indico")
 
 
