@@ -230,6 +230,14 @@ def add_source_command(
         "--color",
         help="Optional feed color. Accepts hex (#RRGGBB or #RGB) or CSS color names.",
     ),
+    title_match: list[str] | None = typer.Option(
+        None,
+        "--title-match",
+        help=(
+            "Optional case-insensitive regex used to keep meetings by title. "
+            "Repeat to add multiple patterns."
+        ),
+    ),
 ) -> None:
     """Add or replace a source in the project config."""
     config_path = _normalize_config_path(config)
@@ -246,10 +254,20 @@ def add_source_command(
         raise
 
     current = load_indico_config(config_path)
+    current_source = next(
+        (source for source in current.sources if source.name == source_name),
+        None,
+    )
     source_color = (
         _normalize_source_color(color)
         if color is not None
+        else current_source.color
+        if current_source is not None
         else _assign_unique_source_color(current.sources)
+    )
+    title_matches = _merge_title_matches(
+        current_source.title_matches if current_source is not None else [],
+        _normalize_title_match_patterns(title_match or []),
     )
     filtered_sources = [
         source for source in current.sources if source.name != source_name
@@ -260,6 +278,7 @@ def add_source_command(
             category_id=category_id,
             base_url=base_url,
             color=source_color,
+            title_matches=title_matches,
         )
     )
     save_indico_config(
@@ -282,8 +301,14 @@ def list_sources_command(
         return
 
     for source in sorted(current.sources, key=lambda item: item.name):
+        match_summary = (
+            f", title_matches=[{', '.join(source.title_matches)}]"
+            if source.title_matches
+            else ""
+        )
         typer.echo(
-            f"{source.name}: category={source.category_id}, base_url={source.base_url}, color={source.color}"
+            f"{source.name}: category={source.category_id}, base_url={source.base_url}, "
+            f"color={source.color}{match_summary}"
         )
 
 
@@ -390,12 +415,20 @@ def generate_sources_command(
                 api_token_env=api_token_env,
             )
         except IndicoAuthError as exc:
-            logger.warning(
-                "Skipping source '%s': %s",
-                selected_source.name,
-                exc,
+                logger.warning(
+                    "Skipping source '%s': %s",
+                    selected_source.name,
+                    exc,
+                )
+                continue
+
+        meetings = [
+            meeting
+            for meeting in meetings
+            if _meeting_matches_title_patterns(
+                meeting.title, selected_source.title_matches
             )
-            continue
+        ]
 
         for meeting in meetings:
             interesting_contributions = _contributions_with_documents(
@@ -702,6 +735,47 @@ def _select_sources(config: IndicoConfig, names: list[str]) -> list[IndicoSource
     if missing_sources:
         raise typer.BadParameter(f"Unknown source(s): {', '.join(missing_sources)}")
     return [source_lookup[name] for name in names]
+
+
+def _normalize_title_match_patterns(values: list[str]) -> list[str]:
+    patterns: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = re.sub(r"\s+", " ", value).strip()
+        if not normalized:
+            continue
+        try:
+            re.compile(normalized, flags=re.IGNORECASE)
+        except re.error as exc:
+            raise typer.BadParameter(
+                f"Invalid title match pattern '{value}': {exc}"
+            ) from exc
+        folded = normalized.casefold()
+        if folded in seen:
+            continue
+        seen.add(folded)
+        patterns.append(normalized)
+    return patterns
+
+
+def _merge_title_matches(existing: list[str], additions: list[str]) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for value in [*existing, *additions]:
+        folded = value.casefold()
+        if folded in seen:
+            continue
+        seen.add(folded)
+        merged.append(value)
+    return merged
+
+
+def _meeting_matches_title_patterns(title: str, title_patterns: list[str]) -> bool:
+    if not title_patterns:
+        return True
+    return any(
+        re.search(pattern, title, flags=re.IGNORECASE) for pattern in title_patterns
+    )
 
 
 def _build_contribution_table(contributions: list[IndicoContribution]) -> str:

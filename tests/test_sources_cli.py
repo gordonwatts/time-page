@@ -25,6 +25,7 @@ from committee_builder.commands.sources import (
     _resolve_generate_paths,
     _short_contribution_title,
 )
+from committee_builder.indico.config import load_indico_config
 from committee_builder.indico.credentials import api_key_env_name
 
 runner = CliRunner()
@@ -77,6 +78,48 @@ def test_indico_add_list_remove() -> None:
         empty_result = runner.invoke(app, ["indico", "list", str(config)])
         assert empty_result.exit_code == 0
         assert "No sources configured." in empty_result.stdout
+
+
+def test_indico_add_accumulates_title_matches() -> None:
+    with runner.isolated_filesystem():
+        config = Path("project")
+
+        first_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config),
+                "https://indico.example.com/category/42/",
+                "--title",
+                "cern",
+                "--title-match",
+                "LUP",
+            ],
+        )
+        second_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config),
+                "https://indico.example.com/category/42/",
+                "--title",
+                "cern",
+                "--title-match",
+                "Plenary",
+            ],
+        )
+
+        assert first_result.exit_code == 0
+        assert second_result.exit_code == 0
+
+        config_data = load_indico_config(config.with_suffix(".yaml"))
+        assert config_data.sources[0].title_matches == ["LUP", "Plenary"]
+
+        list_result = runner.invoke(app, ["indico", "list", str(config)])
+        assert list_result.exit_code == 0
+        assert "title_matches=[LUP, Plenary]" in list_result.stdout
 
 
 def test_indico_api_key_creates_and_updates_local_dotenv() -> None:
@@ -347,6 +390,104 @@ def test_indico_generate_merges_imported_meetings(
         assert "slides.pdf" in rendered
         assert "https://indico.example.com/files/slides.pdf" in rendered
         assert "Event Link" not in rendered
+
+
+def test_indico_generate_filters_meetings_by_title_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        project_path = Path("project.yaml")
+        project_path.write_text(BASE_PROJECT, encoding="utf-8")
+
+        config_path = Path("sources")
+        add_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config_path),
+                "https://indico.example.com/category/11/",
+                "--title",
+                "atlas",
+                "--title-match",
+                "LUP",
+            ],
+        )
+        assert add_result.exit_code == 0
+
+        update_result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                str(config_path),
+                "https://indico.example.com/category/11/",
+                "--title",
+                "atlas",
+                "--title-match",
+                "Plenary",
+            ],
+        )
+        assert update_result.exit_code == 0
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> list[IndicoMeeting]:
+            return [
+                IndicoMeeting(
+                    remote_id="1001",
+                    title="LUP Working Meeting",
+                    start_datetime=datetime(2024, 5, 10, 9, 30),
+                    description="Imported agenda",
+                    participants=[],
+                    documents=[],
+                    url=None,
+                ),
+                IndicoMeeting(
+                    remote_id="1002",
+                    title="Budget Review",
+                    start_datetime=datetime(2024, 5, 11, 9, 30),
+                    description="Imported agenda",
+                    participants=[],
+                    documents=[],
+                    url=None,
+                ),
+                IndicoMeeting(
+                    remote_id="1003",
+                    title="Plenary Session",
+                    start_datetime=datetime(2024, 5, 12, 9, 30),
+                    description="Imported agenda",
+                    participants=[],
+                    documents=[],
+                    url=None,
+                ),
+            ]
+
+        monkeypatch.setattr(
+            "committee_builder.commands.sources.fetch_meetings", fake_fetch
+        )
+
+        output_path = Path("filtered.yaml")
+        result = runner.invoke(
+            app,
+            [
+                "indico",
+                "generate",
+                str(config_path),
+                str(project_path),
+                "--from",
+                "2024-05-01",
+                "--to",
+                "2024-05-31",
+                "--output",
+                str(output_path),
+            ],
+        )
+        assert result.exit_code == 0
+
+        parsed = yaml.safe_load(output_path.read_text(encoding="utf-8"))
+        assert [event["title"] for event in parsed["events"]] == [
+            "LUP Working Meeting",
+            "Plenary Session",
+        ]
 
 
 def test_indico_generate_converts_html_descriptions_to_markdown(
