@@ -230,10 +230,21 @@ def add_source_command(
         "--color",
         help="Optional feed color. Accepts hex (#RRGGBB or #RGB) or CSS color names.",
     ),
+    title_match: list[str] | None = typer.Option(
+        None,
+        "--title-match",
+        help=(
+            "Optional case-insensitive regex used to keep meetings by title. "
+            "Repeat to add multiple patterns."
+        ),
+    ),
     title_exclude: list[str] | None = typer.Option(
         None,
         "--title-exclude",
-        help="Optional regex pattern to skip meetings whose titles match.",
+        help=(
+            "Optional case-insensitive regex used to skip meetings by title. "
+            "Repeat to add multiple patterns."
+        ),
     ),
 ) -> None:
     """Add or replace a source in the project config."""
@@ -251,18 +262,27 @@ def add_source_command(
         raise
 
     current = load_indico_config(config_path)
-    existing_source = next(
+    current_source = next(
         (source for source in current.sources if source.name == source_name),
         None,
     )
     source_color = (
         _normalize_source_color(color)
         if color is not None
-        else (existing_source.color if existing_source is not None else _assign_unique_source_color(current.sources))
+        else current_source.color
+        if current_source is not None
+        else _assign_unique_source_color(current.sources)
     )
-    patterns = _merge_title_exclude_patterns(
-        existing_source.title_exclude_patterns if existing_source is not None else [],
-        title_exclude or [],
+    title_matches = _merge_title_matches(
+        current_source.title_matches if current_source is not None else [],
+        _normalize_title_match_patterns(title_match or []),
+    )
+    title_exclude_patterns = _merge_title_patterns(
+        current_source.title_exclude_patterns if current_source is not None else [],
+        _normalize_title_patterns(
+            title_exclude or [],
+            option_name="--title-exclude",
+        ),
     )
     filtered_sources = [
         source for source in current.sources if source.name != source_name
@@ -273,7 +293,8 @@ def add_source_command(
             category_id=category_id,
             base_url=base_url,
             color=source_color,
-            title_exclude_patterns=patterns,
+            title_matches=title_matches,
+            title_exclude_patterns=title_exclude_patterns,
         )
     )
     save_indico_config(
@@ -296,13 +317,19 @@ def list_sources_command(
         return
 
     for source in sorted(current.sources, key=lambda item: item.name):
-        title_exclude = (
-            f", title_exclude={source.title_exclude_patterns}"
+        match_summary = (
+            f", title_matches=[{', '.join(source.title_matches)}]"
+            if source.title_matches
+            else ""
+        )
+        exclude_summary = (
+            f", title_exclude=[{', '.join(source.title_exclude_patterns)}]"
             if source.title_exclude_patterns
             else ""
         )
         typer.echo(
-            f"{source.name}: category={source.category_id}, base_url={source.base_url}, color={source.color}{title_exclude}"
+            f"{source.name}: category={source.category_id}, base_url={source.base_url}, "
+            f"color={source.color}{match_summary}{exclude_summary}"
         )
 
 
@@ -409,12 +436,20 @@ def generate_sources_command(
                 api_token_env=api_token_env,
             )
         except IndicoAuthError as exc:
-            logger.warning(
-                "Skipping source '%s': %s",
-                selected_source.name,
-                exc,
+                logger.warning(
+                    "Skipping source '%s': %s",
+                    selected_source.name,
+                    exc,
+                )
+                continue
+
+        meetings = [
+            meeting
+            for meeting in meetings
+            if _meeting_matches_title_patterns(
+                meeting.title, selected_source.title_matches
             )
-            continue
+        ]
 
         for meeting in meetings:
             if _meeting_matches_title_exclusions(meeting.title, selected_source.title_exclude_patterns):
@@ -618,31 +653,49 @@ def _normalize_source_color(value: str) -> str:
     return _rgb_to_hex(pale_color)
 
 
-def _merge_title_exclude_patterns(
-    existing_patterns: list[str],
-    new_patterns: list[str],
-) -> list[str]:
-    merged: list[str] = []
-    for pattern in [*existing_patterns, *new_patterns]:
-        normalized = re.sub(r"\s+", " ", pattern).strip()
+def _normalize_title_patterns(values: list[str], *, option_name: str) -> list[str]:
+    patterns: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = re.sub(r"\s+", " ", value).strip()
         if not normalized:
             continue
         try:
             re.compile(normalized, flags=re.IGNORECASE)
         except re.error as exc:
             raise typer.BadParameter(
-                f"Invalid --title-exclude pattern '{pattern}': {exc}"
+                f"Invalid title pattern for {option_name} '{value}': {exc}"
             ) from exc
-        if normalized not in merged:
-            merged.append(normalized)
+        folded = normalized.casefold()
+        if folded in seen:
+            continue
+        seen.add(folded)
+        patterns.append(normalized)
+    return patterns
+
+
+def _normalize_title_match_patterns(values: list[str]) -> list[str]:
+    return _normalize_title_patterns(values, option_name="--title-match")
+
+
+def _merge_title_patterns(existing: list[str], additions: list[str]) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for value in [*existing, *additions]:
+        folded = value.casefold()
+        if folded in seen:
+            continue
+        seen.add(folded)
+        merged.append(value)
     return merged
 
 
+def _merge_title_matches(existing: list[str], additions: list[str]) -> list[str]:
+    return _merge_title_patterns(existing, additions)
+
+
 def _meeting_matches_title_exclusions(title: str, patterns: list[str]) -> bool:
-    for pattern in patterns:
-        if re.search(pattern, title, flags=re.IGNORECASE):
-            return True
-    return False
+    return any(re.search(pattern, title, flags=re.IGNORECASE) for pattern in patterns)
 
 
 def _assign_unique_source_color(existing_sources: list[IndicoSource]) -> str:
@@ -750,6 +803,14 @@ def _select_sources(config: IndicoConfig, names: list[str]) -> list[IndicoSource
     if missing_sources:
         raise typer.BadParameter(f"Unknown source(s): {', '.join(missing_sources)}")
     return [source_lookup[name] for name in names]
+
+
+def _meeting_matches_title_patterns(title: str, title_patterns: list[str]) -> bool:
+    if not title_patterns:
+        return True
+    return any(
+        re.search(pattern, title, flags=re.IGNORECASE) for pattern in title_patterns
+    )
 
 
 def _build_contribution_table(contributions: list[IndicoContribution]) -> str:

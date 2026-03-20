@@ -91,7 +91,7 @@ committee build data/committee.history.yaml --output dist/committee-history.html
 - `committee init PATH [--force]`
 - `committee import-csv` (placeholder)
 - `committee import-md` (placeholder)
-- `committee indico add CONFIG CATEGORY_URL [--title TITLE] [--color COLOR] [--title-exclude PATTERN] [--api-key-env ENV] [--api-token-env ENV]`
+- `committee indico add CONFIG CATEGORY_URL [--title TITLE] [--title-match PATTERN] [--title-exclude PATTERN] [--color COLOR] [--api-key-env ENV] [--api-token-env ENV]`
 - `committee indico list CONFIG`
 - `committee indico remove CONFIG NAME`
 - `committee indico generate CONFIG PROJECT_YAML --from YYYY-MM-DD --to YYYY-MM-DD [--api-key-env ENV] [--api-token-env ENV] [--output PATH]`
@@ -112,7 +112,19 @@ committee indico add cern https://indico.example.org/category/1234/ --title cern
 
 If `--color` is omitted, the CLI assigns a unique pale hex color automatically. Named CSS colors and hex values are normalized to stored `#RRGGBB` category colors.
 
-To skip meetings whose titles match a pattern, add one or more `--title-exclude` values. Repeat `committee indico add` for the same source to accumulate more exclusion patterns.
+To keep only meetings whose titles match a case-insensitive regular expression, add one or more `--title-match` values. Repeat the command to accumulate filters on the same source:
+
+```bash
+committee indico add cern https://indico.example.org/category/1234/ --title-match LUP
+committee indico add cern https://indico.example.org/category/1234/ --title-match Plenary
+```
+
+To skip meetings whose titles match a case-insensitive regular expression, add one or more `--title-exclude` values. Repeat the command to accumulate exclusion filters on the same source:
+
+```bash
+committee indico add cern https://indico.example.org/category/1234/ --title-exclude "high school"
+committee indico add cern https://indico.example.org/category/1234/ --title-exclude Plenary
+```
 
 Generate meeting events into a new YAML file:
 
