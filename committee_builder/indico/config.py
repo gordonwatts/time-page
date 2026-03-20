@@ -19,6 +19,7 @@ class IndicoSource(BaseModel):
     category_id: int
     base_url: str = Field(min_length=1)
     color: str = Field(min_length=1)
+    title_exclude_patterns: list[str] = Field(default_factory=list)
 
 
 class IndicoConfig(BaseModel):

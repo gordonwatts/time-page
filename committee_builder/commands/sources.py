@@ -230,6 +230,11 @@ def add_source_command(
         "--color",
         help="Optional feed color. Accepts hex (#RRGGBB or #RGB) or CSS color names.",
     ),
+    title_exclude: list[str] | None = typer.Option(
+        None,
+        "--title-exclude",
+        help="Optional regex pattern to skip meetings whose titles match.",
+    ),
 ) -> None:
     """Add or replace a source in the project config."""
     config_path = _normalize_config_path(config)
@@ -246,10 +251,18 @@ def add_source_command(
         raise
 
     current = load_indico_config(config_path)
+    existing_source = next(
+        (source for source in current.sources if source.name == source_name),
+        None,
+    )
     source_color = (
         _normalize_source_color(color)
         if color is not None
-        else _assign_unique_source_color(current.sources)
+        else (existing_source.color if existing_source is not None else _assign_unique_source_color(current.sources))
+    )
+    patterns = _merge_title_exclude_patterns(
+        existing_source.title_exclude_patterns if existing_source is not None else [],
+        title_exclude or [],
     )
     filtered_sources = [
         source for source in current.sources if source.name != source_name
@@ -260,6 +273,7 @@ def add_source_command(
             category_id=category_id,
             base_url=base_url,
             color=source_color,
+            title_exclude_patterns=patterns,
         )
     )
     save_indico_config(
@@ -282,8 +296,13 @@ def list_sources_command(
         return
 
     for source in sorted(current.sources, key=lambda item: item.name):
+        title_exclude = (
+            f", title_exclude={source.title_exclude_patterns}"
+            if source.title_exclude_patterns
+            else ""
+        )
         typer.echo(
-            f"{source.name}: category={source.category_id}, base_url={source.base_url}, color={source.color}"
+            f"{source.name}: category={source.category_id}, base_url={source.base_url}, color={source.color}{title_exclude}"
         )
 
 
@@ -398,6 +417,8 @@ def generate_sources_command(
             continue
 
         for meeting in meetings:
+            if _meeting_matches_title_exclusions(meeting.title, selected_source.title_exclude_patterns):
+                continue
             interesting_contributions = _contributions_with_documents(
                 meeting.contributions
             )
@@ -595,6 +616,33 @@ def _normalize_source_color(value: str) -> str:
     hex_color = _parse_color_to_hex(value)
     pale_color = _blend_rgb(_hex_to_rgb(hex_color), 0.78)
     return _rgb_to_hex(pale_color)
+
+
+def _merge_title_exclude_patterns(
+    existing_patterns: list[str],
+    new_patterns: list[str],
+) -> list[str]:
+    merged: list[str] = []
+    for pattern in [*existing_patterns, *new_patterns]:
+        normalized = re.sub(r"\s+", " ", pattern).strip()
+        if not normalized:
+            continue
+        try:
+            re.compile(normalized, flags=re.IGNORECASE)
+        except re.error as exc:
+            raise typer.BadParameter(
+                f"Invalid --title-exclude pattern '{pattern}': {exc}"
+            ) from exc
+        if normalized not in merged:
+            merged.append(normalized)
+    return merged
+
+
+def _meeting_matches_title_exclusions(title: str, patterns: list[str]) -> bool:
+    for pattern in patterns:
+        if re.search(pattern, title, flags=re.IGNORECASE):
+            return True
+    return False
 
 
 def _assign_unique_source_color(existing_sources: list[IndicoSource]) -> str:
