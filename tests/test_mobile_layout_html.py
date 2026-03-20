@@ -36,4 +36,5 @@ def test_output_includes_mobile_timeline_first_layout(tmp_path: Path) -> None:
     assert 'grid-template-areas:' in text
     assert '"timeline"' in text
     assert '.timeline {' in text
+    assert '.search-row {' in text
     assert 'max-height: min(24rem, 46vh);' in text
