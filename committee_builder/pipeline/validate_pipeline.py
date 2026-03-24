@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from committee_builder.io.yaml_io import read_yaml
-from committee_builder.schema.models import CommitteeHistory
+from committee_builder.schema.models import ProjectFile
 from committee_builder.schema.validators import (
     SemanticValidationError,
     validate_semantics,
@@ -17,7 +17,7 @@ from committee_builder.schema.validators import (
 
 @dataclass
 class PipelineValidationResult:
-    history: CommitteeHistory
+    history: ProjectFile
     warnings: list[str]
 
 
@@ -26,7 +26,7 @@ def validate_yaml(input_yaml: Path) -> PipelineValidationResult:
     raw = read_yaml(input_yaml)
 
     try:
-        history = CommitteeHistory.model_validate(raw)
+        history = ProjectFile.model_validate(raw)
     except ValidationError as exc:
         raise ValueError(str(exc)) from exc
 

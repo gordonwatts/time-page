@@ -19,20 +19,18 @@ from committee_builder.indico.client import (
     fetch_category_title,
     fetch_meetings,
 )
-from committee_builder.indico.config import (
-    IndicoConfig,
-    IndicoSource,
-    load_indico_config,
-    save_indico_config,
-)
 from committee_builder.indico.credentials import normalize_base_url, store_api_key
 from committee_builder.indico.markdown import html_to_markdown
-from committee_builder.io.yaml_io import write_yaml
+from committee_builder.io.yaml_io import (
+    load_project_file,
+    save_project_file,
+    write_yaml,
+)
 from committee_builder.pipeline.validate_pipeline import (
     PipelineValidationResult,
     validate_yaml,
 )
-from committee_builder.schema.models import CommitteeHistory
+from committee_builder.schema.models import IndicoSource, ProjectFile
 from committee_builder.schema.validators import validate_semantics
 
 logger = logging.getLogger(__name__)
@@ -261,17 +259,23 @@ def add_source_command(
         logger.error("%s", exc)
         raise
 
-    current = load_indico_config(config_path)
+    current = _load_or_init_project(config_path)
     current_source = next(
-        (source for source in current.sources if source.name == source_name),
+        (
+            source
+            for source in current.indico_category_sources
+            if source.name == source_name
+        ),
         None,
     )
     source_color = (
         _normalize_source_color(color)
         if color is not None
-        else current_source.color
-        if current_source is not None
-        else _assign_unique_source_color(current.sources)
+        else (
+            current_source.color
+            if current_source is not None
+            else _assign_unique_source_color(current.indico_category_sources)
+        )
     )
     title_matches = _merge_title_matches(
         current_source.title_matches if current_source is not None else [],
@@ -285,7 +289,9 @@ def add_source_command(
         ),
     )
     filtered_sources = [
-        source for source in current.sources if source.name != source_name
+        source
+        for source in current.indico_category_sources
+        if source.name != source_name
     ]
     filtered_sources.append(
         IndicoSource(
@@ -297,9 +303,15 @@ def add_source_command(
             title_exclude_patterns=title_exclude_patterns,
         )
     )
-    save_indico_config(
+    save_project_file(
         config_path,
-        IndicoConfig(version=current.version, sources=filtered_sources),
+        current.model_copy(
+            update={
+                "indico_category_sources": sorted(
+                    filtered_sources, key=lambda source: source.name.casefold()
+                )
+            }
+        ),
     )
     logger.info("Saved source '%s' in %s", source_name, config_path)
 
@@ -311,12 +323,14 @@ def list_sources_command(
 ) -> None:
     """List all configured sources."""
     config_path = _normalize_config_path(config)
-    current = load_indico_config(config_path)
-    if not current.sources:
+    current = _load_or_init_project(config_path)
+    if not current.indico_category_sources:
         typer.echo("No sources configured.")
         return
 
-    for source in sorted(current.sources, key=lambda item: item.name):
+    for source in sorted(
+        current.indico_category_sources, key=lambda item: item.name.casefold()
+    ):
         match_summary = (
             f", title_matches=[{', '.join(source.title_matches)}]"
             if source.title_matches
@@ -354,12 +368,23 @@ def remove_source_command(
 ) -> None:
     """Remove a source by name."""
     config_path = _normalize_config_path(config)
-    current = load_indico_config(config_path)
-    filtered = [source for source in current.sources if source.name != name]
-    if len(filtered) == len(current.sources):
+    current = _load_or_init_project(config_path)
+    filtered = [
+        source for source in current.indico_category_sources if source.name != name
+    ]
+    if len(filtered) == len(current.indico_category_sources):
         raise typer.BadParameter(f"Source not found: {name}")
 
-    save_indico_config(config_path, IndicoConfig(version=current.version, sources=filtered))
+    save_project_file(
+        config_path,
+        current.model_copy(
+            update={
+                "indico_category_sources": sorted(
+                    filtered, key=lambda source: source.name.casefold()
+                )
+            }
+        ),
+    )
     logger.info("Removed source '%s' from %s", name, config_path)
 
 
@@ -408,8 +433,8 @@ def generate_sources_command(
     range_start, range_end = _resolve_range(
         parsed_from, parsed_to, past_weeks, future_weeks
     )
-    config_data = load_indico_config(config_path)
-    selected = _select_sources(config_data, source)
+    project = _load_or_init_project(config_path)
+    selected = _select_sources(project, source)
     generate_paths = _resolve_generate_paths(
         config_path=config_path,
         project_yaml=project_yaml,
@@ -418,7 +443,6 @@ def generate_sources_command(
     )
     validated = _load_history(
         config_path=config_path,
-        config_data=config_data,
         project_yaml=generate_paths.project_yaml,
         range_start=range_start,
         range_end=range_end,
@@ -436,12 +460,12 @@ def generate_sources_command(
                 api_token_env=api_token_env,
             )
         except IndicoAuthError as exc:
-                logger.warning(
-                    "Skipping source '%s': %s",
-                    selected_source.name,
-                    exc,
-                )
-                continue
+            logger.warning(
+                "Skipping source '%s': %s",
+                selected_source.name,
+                exc,
+            )
+            continue
 
         meetings = [
             meeting
@@ -452,12 +476,16 @@ def generate_sources_command(
         ]
 
         for meeting in meetings:
-            if _meeting_matches_title_exclusions(meeting.title, selected_source.title_exclude_patterns):
+            if _meeting_matches_title_exclusions(
+                meeting.title, selected_source.title_exclude_patterns
+            ):
                 continue
             interesting_contributions = _contributions_with_documents(
                 meeting.contributions
             )
-            is_interesting_meeting = bool(meeting.documents or interesting_contributions)
+            is_interesting_meeting = bool(
+                meeting.documents or interesting_contributions
+            )
             summary_md = (
                 html_to_markdown(meeting.description, base_url=selected_source.base_url)
                 or ""
@@ -544,12 +572,22 @@ def generate_sources_command(
     )
     output_payload = {
         "schema_version": validated.history.schema_version,
-        "committee": validated.history.committee.model_dump(mode="json"),
+        "metadata": validated.history.metadata.model_dump(mode="json"),
+        "date_window": validated.history.date_window.model_dump(mode="json"),
         "event_type_styles": {
             event_type.value: event_style.model_dump(mode="json")
             for event_type, event_style in event_styles.items()
         },
         "events": [merged_events[event_id] for event_id in sorted(merged_events)],
+        "indico_meeting_source": (
+            validated.history.indico_meeting_source.model_dump(mode="json")
+            if validated.history.indico_meeting_source is not None
+            else None
+        ),
+        "indico_category_sources": [
+            source_item.model_dump(mode="json")
+            for source_item in validated.history.indico_category_sources
+        ],
     }
     write_yaml(output_path, output_payload)
     logger.info(
@@ -566,15 +604,21 @@ def _resolve_generate_paths(
     inferred_project = config_path.with_name(f"{config_path.stem}-project.yaml")
 
     if output_option is not None and output_arg is not None:
-        raise typer.BadParameter("Use either positional OUTPUT_YAML or --output, not both.")
+        raise typer.BadParameter(
+            "Use either positional OUTPUT_YAML or --output, not both."
+        )
 
     if project_yaml is None:
         if inferred_project.exists():
-            return GeneratePaths(project_yaml=inferred_project, output_path=output_option)
+            return GeneratePaths(
+                project_yaml=inferred_project, output_path=output_option
+            )
         return GeneratePaths(project_yaml=None, output_path=output_option)
 
     if project_yaml.exists():
-        return GeneratePaths(project_yaml=project_yaml, output_path=output_arg or output_option)
+        return GeneratePaths(
+            project_yaml=project_yaml, output_path=output_arg or output_option
+        )
 
     if inferred_project.exists():
         return GeneratePaths(project_yaml=inferred_project, output_path=project_yaml)
@@ -587,7 +631,6 @@ def _resolve_generate_paths(
 
 def _load_history(
     config_path: Path,
-    config_data: IndicoConfig,
     project_yaml: Path | None,
     range_start: date,
     range_end: date,
@@ -595,16 +638,18 @@ def _load_history(
     if project_yaml is not None:
         return validate_yaml(project_yaml)
 
-    committee_name = (
-        config_data.sources[0].name if len(config_data.sources) == 1 else config_path.stem
-    )
-    history = CommitteeHistory.model_validate(
+    if config_path.exists():
+        return validate_yaml(config_path)
+
+    history = ProjectFile.model_validate(
         {
             "schema_version": "1.0",
-            "committee": {
-                "name": committee_name,
+            "metadata": {
+                "name": config_path.stem,
                 "subtitle": "Imported Indico meetings",
                 "description_md": f"Generated from Indico source config `{config_path.name}`.",
+            },
+            "date_window": {
                 "start_date": range_start.isoformat(),
                 "end_date": range_end.isoformat(),
             },
@@ -741,11 +786,11 @@ def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     return "#{:02x}{:02x}{:02x}".format(*rgb)
 
 
-def _blend_rgb(rgb: tuple[int, int, int], weight_to_white: float) -> tuple[int, int, int]:
+def _blend_rgb(
+    rgb: tuple[int, int, int], weight_to_white: float
+) -> tuple[int, int, int]:
     clamped_weight = max(0.0, min(1.0, weight_to_white))
-    return tuple(
-        round(channel + (255 - channel) * clamped_weight) for channel in rgb
-    )
+    return tuple(round(channel + (255 - channel) * clamped_weight) for channel in rgb)
 
 
 def _resolve_range(
@@ -790,19 +835,39 @@ def _parse_iso_date(value: str | None, option_name: str) -> date | None:
         raise typer.BadParameter(f"Invalid date for {option_name}: {value}") from exc
 
 
-def _select_sources(config: IndicoConfig, names: list[str]) -> list[IndicoSource]:
-    if not config.sources:
+def _select_sources(project: ProjectFile, names: list[str]) -> list[IndicoSource]:
+    if not project.indico_category_sources:
         raise typer.BadParameter(
             "No sources configured. Run `committee indico add` first."
         )
     if not names:
-        return config.sources
+        return project.indico_category_sources
 
-    source_lookup = {source.name: source for source in config.sources}
+    source_lookup = {source.name: source for source in project.indico_category_sources}
     missing_sources = sorted(name for name in names if name not in source_lookup)
     if missing_sources:
         raise typer.BadParameter(f"Unknown source(s): {', '.join(missing_sources)}")
     return [source_lookup[name] for name in names]
+
+
+def _load_or_init_project(config_path: Path) -> ProjectFile:
+    if config_path.exists():
+        return load_project_file(config_path)
+    return _build_default_project(config_path.stem)
+
+
+def _build_default_project(project_name: str) -> ProjectFile:
+    today = date.today()
+    return ProjectFile.model_validate(
+        {
+            "schema_version": "1.0",
+            "metadata": {"name": project_name},
+            "date_window": {"start_date": today.isoformat(), "end_date": None},
+            "event_type_styles": DEFAULT_EVENT_TYPE_STYLES,
+            "events": [],
+            "indico_category_sources": [],
+        }
+    )
 
 
 def _meeting_matches_title_patterns(title: str, title_patterns: list[str]) -> bool:
@@ -822,12 +887,16 @@ def _build_contribution_table(contributions: list[IndicoContribution]) -> str:
         "| --- | --- | --- |",
     ]
     for contribution in sorted(contributions, key=lambda item: item.sort_key):
-        authors = ", ".join(contribution.speaker_names) if contribution.speaker_names else "-"
+        authors = (
+            ", ".join(contribution.speaker_names) if contribution.speaker_names else "-"
+        )
         if contribution.documents:
             document_labels = _build_document_link_labels(contribution.documents)
             documents = "<br>".join(
                 f"• [{_escape_markdown_table_cell(label)}]({document.url})"
-                for document, label in zip(contribution.documents, document_labels, strict=True)
+                for document, label in zip(
+                    contribution.documents, document_labels, strict=True
+                )
             )
         else:
             documents = "-"
@@ -835,7 +904,9 @@ def _build_contribution_table(contributions: list[IndicoContribution]) -> str:
             "| "
             + " | ".join(
                 [
-                    _escape_markdown_table_cell(_short_contribution_title(contribution)),
+                    _escape_markdown_table_cell(
+                        _short_contribution_title(contribution)
+                    ),
                     _escape_markdown_table_cell(authors),
                     documents.replace("|", "\\|"),
                 ]
@@ -866,19 +937,17 @@ def _compact_unique_labels(labels: list[str], *, initial_width: int = 20) -> lis
     minimum_width = min(initial_width, maximum_width)
 
     for width in range(minimum_width, maximum_width + 1):
-        shortened = [label if len(label) <= width else label[:width] for label in labels]
+        shortened = [
+            label if len(label) <= width else label[:width] for label in labels
+        ]
         if len(set(shortened)) != len(shortened):
             continue
 
-        rolled_back = [
-            _roll_back_to_word_boundary(label, width) for label in labels
-        ]
+        rolled_back = [_roll_back_to_word_boundary(label, width) for label in labels]
         if len(set(rolled_back)) == len(rolled_back):
             return rolled_back
 
-        duplicates = {
-            value for value in rolled_back if rolled_back.count(value) > 1
-        }
+        duplicates = {value for value in rolled_back if rolled_back.count(value) > 1}
         return [
             shortened[index] if value in duplicates else value
             for index, value in enumerate(rolled_back)
@@ -907,9 +976,7 @@ def _roll_back_to_word_boundary(value: str, width: int) -> str:
 def _contributions_with_documents(
     contributions: list[IndicoContribution],
 ) -> list[IndicoContribution]:
-    return [
-        contribution for contribution in contributions if contribution.documents
-    ]
+    return [contribution for contribution in contributions if contribution.documents]
 
 
 def _build_meeting_short_label(

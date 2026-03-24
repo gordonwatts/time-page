@@ -15,7 +15,14 @@ from committee_builder.render.markdown import render_markdown
 
 def _render_payload(history) -> dict:
     payload = history.model_dump(mode="json")
-    committee = payload["committee"]
+    metadata = payload["metadata"]
+    date_window = payload["date_window"]
+    committee = {
+        **metadata,
+        "start_date": date_window.get("start_date"),
+        "end_date": date_window.get("end_date"),
+    }
+    payload["committee"] = committee
     committee["description_html"] = render_markdown(committee.get("description_md"))
     committee["notes_html"] = render_markdown(committee.get("notes_md"))
 
@@ -60,7 +67,7 @@ def build_html(
 
     data_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     html = template.render(
-        page_title=payload["committee"]["name"],
+        page_title=payload["metadata"]["name"],
         css=css,
         app_js=js,
         data_json=data_json,
