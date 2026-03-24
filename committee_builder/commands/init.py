@@ -14,13 +14,15 @@ logger = logging.getLogger(__name__)
 
 STARTER_DOC = {
     "schema_version": "1.0",
-    "committee": {
+    "metadata": {
         "name": "Committee Name",
         "subtitle": "Optional subtitle",
         "description_md": "Optional markdown description.",
+        "notes_md": "Optional committee notes in markdown.",
+    },
+    "date_window": {
         "start_date": "2023-01-01",
         "end_date": "2024-12-31",
-        "notes_md": "Optional committee notes in markdown.",
     },
     "event_type_styles": {
         "meeting": {"label": "Meeting", "color": "sky"},

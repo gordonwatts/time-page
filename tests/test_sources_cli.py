@@ -62,17 +62,17 @@ def test_indico_add_list_remove() -> None:
         )
         assert add_result.exit_code == 0
 
-        config_data = yaml.safe_load(config.with_suffix(".yaml").read_text(encoding="utf-8"))
-        assert config_data["sources"][0]["color"].startswith("#")
+        config_data = yaml.safe_load(
+            config.with_suffix(".yaml").read_text(encoding="utf-8")
+        )
+        assert config_data["indico_category_sources"][0]["color"].startswith("#")
 
         list_result = runner.invoke(app, ["indico", "list", str(config)])
         assert list_result.exit_code == 0
         assert "cern: category=42" in list_result.stdout
         assert "color=" in list_result.stdout
 
-        remove_result = runner.invoke(
-            app, ["indico", "remove", str(config), "cern"]
-        )
+        remove_result = runner.invoke(app, ["indico", "remove", str(config), "cern"])
         assert remove_result.exit_code == 0
 
         empty_result = runner.invoke(app, ["indico", "list", str(config)])
@@ -238,9 +238,7 @@ def test_indico_generate_skips_meetings_matching_title_excludes(
 
         rendered = output_path.read_text(encoding="utf-8")
         parsed = yaml.safe_load(rendered)
-        assert [event["title"] for event in parsed["events"]] == [
-            "Weekly Coordination"
-        ]
+        assert [event["title"] for event in parsed["events"]] == ["Weekly Coordination"]
         assert "High School Meeting" not in rendered
         assert "Weekly Coordination" in rendered
 
@@ -250,14 +248,13 @@ def test_indico_api_key_creates_and_updates_local_dotenv() -> None:
         base_url = "https://indico.example.com/indico/"
         env_name = api_key_env_name(base_url)
 
-        first_result = runner.invoke(
-            app, ["indico", "api-key", base_url, "first-key"]
-        )
+        first_result = runner.invoke(app, ["indico", "api-key", base_url, "first-key"])
         assert first_result.exit_code == 0
         assert Path(".env").read_text(encoding="utf-8") == f"{env_name}=first-key\n"
 
         second_result = runner.invoke(
-            app, ["indico", "api-key", "https://indico.example.com/indico", "updated-key"]
+            app,
+            ["indico", "api-key", "https://indico.example.com/indico", "updated-key"],
         )
         assert second_result.exit_code == 0
         assert Path(".env").read_text(encoding="utf-8") == f"{env_name}=updated-key\n"
@@ -324,7 +321,10 @@ def test_indico_add_uses_category_title_when_not_provided(
             ["indico", "list", "my-project"],
         )
         assert list_result.exit_code == 0
-        assert "ATLAS: category=77, base_url=https://indico.example.com/indico, color=" in list_result.stdout
+        assert (
+            "ATLAS: category=77, base_url=https://indico.example.com/indico, color="
+            in list_result.stdout
+        )
 
 
 def test_indico_add_logs_auth_error_for_protected_category(
@@ -369,7 +369,9 @@ def test_indico_add_normalizes_named_color() -> None:
         assert result.exit_code == 0
 
         config_data = yaml.safe_load(Path("colors.yaml").read_text(encoding="utf-8"))
-        assert config_data["sources"][0]["color"] == _normalize_source_color("red")
+        assert config_data["indico_category_sources"][0][
+            "color"
+        ] == _normalize_source_color("red")
 
 
 def test_indico_add_normalizes_hex_color() -> None:
@@ -390,7 +392,9 @@ def test_indico_add_normalizes_hex_color() -> None:
         assert result.exit_code == 0
 
         config_data = yaml.safe_load(Path("colors.yaml").read_text(encoding="utf-8"))
-        assert config_data["sources"][0]["color"] == _normalize_source_color("#88ccff")
+        assert config_data["indico_category_sources"][0][
+            "color"
+        ] == _normalize_source_color("#88ccff")
 
 
 def test_indico_add_assigns_unique_generated_colors() -> None:
@@ -421,7 +425,7 @@ def test_indico_add_assigns_unique_generated_colors() -> None:
         assert second.exit_code == 0
 
         config_data = yaml.safe_load(Path("colors.yaml").read_text(encoding="utf-8"))
-        colors = [source["color"] for source in config_data["sources"]]
+        colors = [source["color"] for source in config_data["indico_category_sources"]]
         assert len(colors) == len(set(colors))
 
 
@@ -704,7 +708,10 @@ def test_indico_generate_converts_html_descriptions_to_markdown(
         assert "- *Risks*" in rendered
         assert "minutes_md:" in rendered
         assert "Minutes approved." in rendered
-        assert "![plot](https://indico.example.com/event/1001/attachments/7/8/plot.png)" in rendered
+        assert (
+            "![plot](https://indico.example.com/event/1001/attachments/7/8/plot.png)"
+            in rendered
+        )
         assert "- Action one" in rendered
         assert "Talk note with *formatting*." in rendered
         assert "| Talk | Speakers | Documents |" in rendered
@@ -1502,7 +1509,9 @@ def test_short_contribution_title_prefers_indico_contribution_title() -> None:
         ],
     )
 
-    assert _short_contribution_title(contribution) == "Lossy compression for FTAG branches"
+    assert (
+        _short_contribution_title(contribution) == "Lossy compression for FTAG branches"
+    )
 
 
 def test_short_contribution_title_falls_back_to_cleaned_filename() -> None:
@@ -1517,18 +1526,26 @@ def test_short_contribution_title_falls_back_to_cleaned_filename() -> None:
         ],
     )
 
-    assert _short_contribution_title(contribution) == "Lossy Compression Studies In FTAG"
+    assert (
+        _short_contribution_title(contribution) == "Lossy Compression Studies In FTAG"
+    )
 
 
 def test_short_contribution_title_uses_placeholder_without_title_or_documents() -> None:
-    contribution = IndicoContribution(title="", speaker_names=["Romain Bouquet"], documents=[])
+    contribution = IndicoContribution(
+        title="", speaker_names=["Romain Bouquet"], documents=[]
+    )
 
     assert _short_contribution_title(contribution) == "Untitled talk"
 
 
 def test_build_document_link_labels_uses_talk_for_single_upload() -> None:
     labels = _build_document_link_labels(
-        [IndicoDocument(label="Very long filename.pdf", url="https://example.org/slides.pdf")]
+        [
+            IndicoDocument(
+                label="Very long filename.pdf", url="https://example.org/slides.pdf"
+            )
+        ]
     )
 
     assert labels == ["Talk"]
@@ -1559,8 +1576,8 @@ def test_compact_unique_labels_reverts_colliding_word_boundary_rollbacks() -> No
         ]
     )
 
-    assert labels == ["Alpha beta one file.", "Alpha beta one note.", "Gamma delta report"]
-
-
-
-
+    assert labels == [
+        "Alpha beta one file.",
+        "Alpha beta one note.",
+        "Gamma delta report",
+    ]

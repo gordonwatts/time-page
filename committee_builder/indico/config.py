@@ -1,30 +1,18 @@
-"""Models and persistence helpers for Indico source configuration."""
+"""Compatibility helpers for Indico configuration stored in project YAML."""
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from committee_builder.io.yaml_io import read_yaml, write_yaml
-
-
-class IndicoSource(BaseModel):
-    """Single configured Indico category source."""
-
-    # Ignore legacy per-source credential fields if present in existing files.
-    model_config = ConfigDict(extra="ignore")
-
-    name: str = Field(min_length=1)
-    category_id: int
-    base_url: str = Field(min_length=1)
-    color: str = Field(min_length=1)
-    title_matches: list[str] = Field(default_factory=list)
-    title_exclude_patterns: list[str] = Field(default_factory=list)
+from committee_builder.io.yaml_io import load_project_file, save_project_file
+from committee_builder.schema.models import IndicoSource, ProjectFile
 
 
 class IndicoConfig(BaseModel):
-    """Root configuration file for Indico source definitions."""
+    """Backward-compatible config view for legacy call sites/tests."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -33,20 +21,29 @@ class IndicoConfig(BaseModel):
 
 
 def load_indico_config(path: Path) -> IndicoConfig:
-    """Load config from disk, returning an empty config when file is missing."""
     if not path.exists():
         return IndicoConfig()
-    raw_data = read_yaml(path)
-    return IndicoConfig.model_validate(raw_data)
+    project = load_project_file(path)
+    return IndicoConfig(sources=project.indico_category_sources)
 
 
 def save_indico_config(path: Path, config: IndicoConfig) -> None:
-    """Persist config to disk in a deterministic order."""
-    serialized = config.model_dump(mode="json")
-    serialized["sources"] = sorted(serialized["sources"], key=lambda item: item["name"])
-    for source in serialized["sources"]:
-        if not source.get("title_matches"):
-            source.pop("title_matches", None)
-        if not source.get("title_exclude_patterns"):
-            source.pop("title_exclude_patterns", None)
-    write_yaml(path, serialized)
+    project = load_project_file(path) if path.exists() else None
+    if project is None:
+        today = date.today().isoformat()
+        project = ProjectFile.model_validate(
+            {
+                "schema_version": "1.0",
+                "metadata": {"name": path.stem},
+                "date_window": {"start_date": today},
+                "event_type_styles": {},
+                "events": [],
+            }
+        )
+    save_project_file(
+        path,
+        project.model_copy(update={"indico_category_sources": config.sources}),
+    )
+
+
+__all__ = ["IndicoConfig", "IndicoSource", "load_indico_config", "save_indico_config"]
