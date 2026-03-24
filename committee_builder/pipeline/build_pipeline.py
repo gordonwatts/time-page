@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -11,6 +12,7 @@ from committee_builder.io.normalize import normalize_history
 from committee_builder.io.paths import default_output_html
 from committee_builder.pipeline.validate_pipeline import validate_yaml
 from committee_builder.render.markdown import render_markdown
+from committee_builder.schema.models import DateWindow, ProjectFile
 
 
 def _render_payload(history) -> dict:
@@ -50,12 +52,40 @@ def _load_template_assets() -> tuple[str, str, Environment]:
     return css, js, env
 
 
+def _apply_date_override(
+    history: ProjectFile, from_date: date | None, to_date: date | None
+) -> ProjectFile:
+    if from_date is None and to_date is None:
+        return history
+
+    window_start = from_date or history.date_window.start_date
+    window_end = to_date if to_date is not None else history.date_window.end_date
+    filtered_events = [
+        event
+        for event in history.events
+        if event.date >= window_start
+        and (window_end is None or event.date <= window_end)
+    ]
+
+    return history.model_copy(
+        update={
+            "date_window": DateWindow(start_date=window_start, end_date=window_end),
+            "events": filtered_events,
+        }
+    )
+
+
 def build_html(
-    input_yaml: Path, output_path: Path | None, overwrite: bool = False
+    input_yaml: Path,
+    output_path: Path | None,
+    overwrite: bool = False,
+    from_date: date | None = None,
+    to_date: date | None = None,
 ) -> Path:
     """Build a standalone HTML file from the YAML input."""
     result = validate_yaml(input_yaml)
-    history = normalize_history(result.history)
+    history = _apply_date_override(result.history, from_date=from_date, to_date=to_date)
+    history = normalize_history(history)
     payload = _render_payload(history)
 
     target = output_path if output_path is not None else default_output_html(input_yaml)

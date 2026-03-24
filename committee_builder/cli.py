@@ -6,9 +6,12 @@ import logging
 
 import typer
 
+from committee_builder.commands.add import (
+    add_event_command,
+    add_indico_category_command,
+    add_minutes_command,
+)
 from committee_builder.commands.build import build_command
-from committee_builder.commands.import_csv import import_csv_command
-from committee_builder.commands.import_md import import_md_command
 from committee_builder.commands.init import init_command
 from committee_builder.commands.sources import (
     add_source_command,
@@ -46,9 +49,9 @@ def main_callback(
     """Committee history tooling.
 
     Examples:
-      committee validate data/committee.history.yaml
-      committee build data/committee.history.yaml
-      committee -vv build data/committee.history.yaml --overwrite
+      committee init project.yaml --title "Steering Committee" --from 2024-01-01 --to 2025-12-31
+      committee add event project.yaml --title "Kickoff" --date 2024-01-12
+      committee build project.yaml --from 2024-01-01 --to 2024-12-31
     """
     configure_logging(verbose)
     logger.debug("CLI initialized with verbosity=%s", verbose)
@@ -61,16 +64,21 @@ app.command(
     "validate", help="Validate a YAML source file against schema and semantic checks."
 )(validate_command)
 app.command("init", help="Create a starter YAML source file.")(init_command)
-app.command("import-csv", help="Placeholder for future CSV import workflow.")(
-    import_csv_command
-)
-app.command("import-md", help="Placeholder for future markdown import workflow.")(
-    import_md_command
-)
 
-indico_app = typer.Typer(
-    help="Manage Indico categories and generate imported meetings."
+add_app = typer.Typer(help="Add events, Indico categories, and minutes content.")
+add_app.command("event", help="Add a local event entry to project YAML.")(
+    add_event_command
 )
+add_app.command("indico", help="Add an Indico category source to project config.")(
+    add_indico_category_command
+)
+add_app.command(
+    "minutes",
+    help="Import minutes text file content into markdown fields in YAML.",
+)(add_minutes_command)
+app.add_typer(add_app, name="add")
+
+indico_app = typer.Typer(help="Manage Indico categories and local API credentials.")
 indico_app.command("add", help="Add an Indico category to the project config.")(
     add_source_command
 )
@@ -90,9 +98,11 @@ indico_app.command(
 indico_app.command("remove", help="Remove an Indico category from the config.")(
     remove_source_command
 )
-indico_app.command("generate", help="Generate meetings YAML from configured categories.")(
-    generate_sources_command
-)
+indico_app.command(
+    "generate",
+    hidden=True,
+    help="Deprecated: use `committee build` with date overrides.",
+)(generate_sources_command)
 
 app.add_typer(indico_app, name="indico")
 
