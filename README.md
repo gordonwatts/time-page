@@ -1,14 +1,14 @@
 # Committee History Builder
 
-Python-first CLI for generating a single standalone committee-history HTML page from an editable YAML source file.
+Python-first CLI for generating a single standalone committee-history HTML page from a master YAML project file.
 
 ## What it does
 
-- Uses YAML as the source of truth
+- Uses one YAML project file as the source of truth (local events + Indico category sources)
 - Validates schema and semantic rules
 - Renders markdown fields (including dollar-math syntax)
+- Fetches Indico meetings during `build`, then merges imported events with local events
 - Generates a self-contained HTML file with inlined CSS, JS, and data
-- No backend and no runtime fetches required
 
 ## Install
 
@@ -28,122 +28,98 @@ pip install -e .[dev]
 
 Prerequisite: install `uv` on the machine ([docs](https://docs.astral.sh/uv/)).
 
-Run directly from a local checkout:
-
 ```bash
 uvx --from . committee --help
 uvx --from . committee build examples/committee.example.yaml --overwrite
 ```
 
-Run directly from this GitHub repo:
-
-```bash
-uvx --from git+https://github.com/gordonwatts/time-page.git committee --help
-```
-
-Run from a published package (recommended for "any computer" usage):
-
-```bash
-uvx --from committee-history-builder committee --help
-```
-
-## Gaps to close for true "any computer" `uvx` usage
-
-- Publish `committee-history-builder` to PyPI (or another index) so users can run `uvx --from committee-history-builder ...` without cloning the repo.
-- Add a CI smoke test that runs `uvx --from . committee --help` (and optionally `uvx --from committee-history-builder committee --help` after publish) to prevent packaging/entry-point regressions.
-
 ## Quickstart
 
-Create a starter file:
+1. Create a starter master project file:
 
 ```bash
-committee init data/committee.history.yaml
+committee init data/committee.project.yaml
 ```
 
-Validate data:
+2. Add an Indico category source (optional):
 
 ```bash
-committee validate data/committee.history.yaml
+committee indico add data/committee.project.yaml https://indico.example.org/category/1234/ --title cern
 ```
 
-Build standalone page:
+3. Validate the project file:
 
 ```bash
-committee build data/committee.history.yaml
+committee validate data/committee.project.yaml
+```
+
+4. Build standalone page (this step also fetches Indico meetings for the effective date window):
+
+```bash
+committee build data/committee.project.yaml --overwrite
 ```
 
 By default this writes:
 
 ```text
-data/committee.history.html
-```
-
-Override output path:
-
-```bash
-committee build data/committee.history.yaml --output dist/committee-history.html --overwrite
+data/committee.project.html
 ```
 
 ## CLI commands
 
-- `committee build INPUT_YAML [--output PATH] [--overwrite]`
-- `committee validate INPUT_YAML`
-- `committee init PATH [--force]`
-- `committee import-csv` (placeholder)
-- `committee import-md` (placeholder)
-- `committee indico add CONFIG CATEGORY_URL [--title TITLE] [--title-match PATTERN] [--title-exclude PATTERN] [--color COLOR] [--api-key-env ENV] [--api-token-env ENV]`
-- `committee indico list CONFIG`
-- `committee indico remove CONFIG NAME`
-- `committee indico generate CONFIG PROJECT_YAML --from YYYY-MM-DD --to YYYY-MM-DD [--api-key-env ENV] [--api-token-env ENV] [--output PATH]`
+- `committee build PROJECT_YAML [--output PATH] [--overwrite] [--from YYYY-MM-DD --to YYYY-MM-DD] [--past-weeks N --future-weeks M]`
+- `committee validate PROJECT_YAML`
+- `committee init PATH [--force] [--title TEXT] [--from YYYY-MM-DD] [--to YYYY-MM-DD]`
+- `committee add event PROJECT_YAML ...`
+- `committee add indico PROJECT_YAML CATEGORY_URL [--title TITLE]`
+- `committee add minutes PROJECT_YAML EVENT_ID MINUTES_PATH [--mode append|replace] [--target event|contribution] [--contribution-index N] [--contribution-title TITLE]`
+- `committee indico add PROJECT_YAML CATEGORY_URL [--title TITLE] [--title-match PATTERN] [--title-exclude PATTERN] [--color COLOR] [--api-key-env ENV] [--api-token-env ENV]`
+- `committee indico list PROJECT_YAML`
+- `committee indico remove PROJECT_YAML SOURCE_NAME`
+- `committee indico api-key BASE_URL TOKEN [--api-key-env ENV]`
+- `committee indico generate ...` *(deprecated/hidden; use `committee build`)*
 
-### Indico category workflow
+## Indico workflow (single master project file)
 
-The Indico commands use the standard HTTP export API. Public categories work without credentials; if API credentials are present they are used automatically.
-
-```bash
-pip install -e .
-```
-
-Configure a category:
+1. Add one or more category sources to the same project file:
 
 ```bash
-committee indico add cern https://indico.example.org/category/1234/ --title cern --color red
+committee indico add data/committee.project.yaml https://indico.example.org/category/1234/ --title cern --color '#FCA5A5'
+committee indico add data/committee.project.yaml https://indico.example.org/category/5678/ --title lhcb
 ```
 
-If `--color` is omitted, the CLI assigns a unique pale hex color automatically. Named CSS colors and hex values are normalized to stored `#RRGGBB` category colors.
-
-To keep only meetings whose titles match a case-insensitive regular expression, add one or more `--title-match` values. Repeat the command to accumulate filters on the same source:
+2. Optionally narrow imported meeting titles by regex:
 
 ```bash
-committee indico add cern https://indico.example.org/category/1234/ --title-match LUP
-committee indico add cern https://indico.example.org/category/1234/ --title-match Plenary
+committee indico add data/committee.project.yaml https://indico.example.org/category/1234/ --title cern --title-match LUP --title-exclude "high school"
 ```
 
-To skip meetings whose titles match a case-insensitive regular expression, add one or more `--title-exclude` values. Repeat the command to accumulate exclusion filters on the same source:
+3. Build. During build, configured sources are fetched and merged into the in-memory history before rendering:
 
 ```bash
-committee indico add cern https://indico.example.org/category/1234/ --title-exclude "high school"
-committee indico add cern https://indico.example.org/category/1234/ --title-exclude Plenary
+committee build data/committee.project.yaml --from 2024-01-01 --to 2024-12-31 --overwrite
 ```
 
-Generate meeting events into a new YAML file:
+### Date precedence and fallback behavior
 
-```bash
-committee indico generate cern data/committee.history.yaml --from 2024-01-01 --to 2024-12-31
-```
+Effective build date window precedence is:
 
-You can also generate with a relative range:
+1. CLI absolute range `--from` + `--to`
+2. CLI relative range `--past-weeks` + `--future-weeks`
+3. `date_window` in project YAML
+4. Default fallback: today ± 1 week, with a warning log
 
-```bash
-committee indico generate cern data/committee.history.yaml --past-weeks 3 --future-weeks 1
-```
+Explicit examples:
 
-See command help:
+- If YAML has `start_date: 2024-01-01` and `end_date: 2024-12-31`, then `committee build project.yaml` uses **2024-01-01 through 2024-12-31**.
+- `committee build project.yaml --from 2025-01-01 --to 2025-03-31` overrides YAML and uses **2025-01-01 through 2025-03-31**.
+- `committee build project.yaml --past-weeks 3 --future-weeks 1` uses **today - 3 weeks** through **today + 1 week**.
+- If YAML omits `end_date`, and no CLI range is supplied, build falls back to **today - 1 week** through **today + 1 week** and logs a warning.
 
-```bash
-committee --help
-committee build --help
-```
+Other warning fallbacks to know:
+
+- If an Indico source requires auth and credentials are unavailable/invalid, that source is skipped with a warning while build continues.
+- If an imported event ID collides with a local event ID, local YAML wins and the imported record is skipped with a warning.
 
 ## Logging and verbosity
 
@@ -156,59 +132,27 @@ Use global verbosity flags:
 Examples:
 
 ```bash
-committee -v validate data/committee.history.yaml
-committee -vv build data/committee.history.yaml
+committee -v validate data/committee.project.yaml
+committee -vv build data/committee.project.yaml
 ```
-
-All informational and warning output is emitted through the Python `logging` package.
 
 ## Source schema overview
 
-Top-level keys:
+Top-level keys in the master project file:
 
 - `schema_version`
-- `committee`
+- `metadata`
+- `date_window`
 - `event_type_styles`
 - `events`
+- `indico_category_sources`
 
 Markdown-capable fields:
 
-- `committee.description_md`
-- `committee.notes_md`
+- `metadata.description_md`
+- `metadata.notes_md`
 - `events[].summary_md`
-
-Events require at least:
-
-- `id`, `type`, `title`, `date`, `important`, `summary_md`
-
-Documents are records:
-
-- `{ label: string, url?: string }`
+- `events[].minutes_md`
+- `events[].contributions[].minutes_md`
 
 See a complete sample at [examples/committee.example.yaml](examples/committee.example.yaml).
-
-## Build architecture
-
-1. Load YAML
-2. Validate with Pydantic + semantic checks
-3. Normalize event order
-4. Render markdown/math to HTML
-5. Render Jinja2 template with inlined CSS/JS/data
-6. Write one standalone HTML file
-
-## Troubleshooting
-
-Validation errors:
-
-- Run `committee -vv validate <file>` for richer diagnostics.
-- Confirm required keys exist and dates are `YYYY-MM-DD`.
-
-Build fails because output exists:
-
-- Re-run with `--overwrite`.
-
-Math not rendering as expected:
-
-- Use `$...$` for inline and `$$...$$` for block expressions.
-- Ensure backslashes in YAML block strings are escaped where needed.
-
