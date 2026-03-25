@@ -26,6 +26,10 @@ from committee_builder.io.yaml_io import (
     save_project_file,
     write_yaml,
 )
+from committee_builder.pipeline.date_range import (
+    parse_cli_range_options,
+    resolve_cli_range,
+)
 from committee_builder.pipeline.validate_pipeline import (
     PipelineValidationResult,
     validate_yaml,
@@ -428,11 +432,20 @@ def generate_sources_command(
 ) -> None:
     """Generate a new committee YAML with imported Indico meeting events."""
     config_path = _normalize_config_path(config)
-    parsed_from = _parse_iso_date(from_date, option_name="--from")
-    parsed_to = _parse_iso_date(to_date, option_name="--to")
-    range_start, range_end = _resolve_range(
-        parsed_from, parsed_to, past_weeks, future_weeks
+    range_options = parse_cli_range_options(
+        from_date=from_date,
+        to_date=to_date,
+        past_weeks=past_weeks,
+        future_weeks=future_weeks,
     )
+    resolved_range = resolve_cli_range(
+        range_options,
+        require_absolute_pair=True,
+        default_relative_weeks=(0, 0),
+    )
+    if resolved_range is None:
+        raise typer.BadParameter("Unable to resolve source generation date range.")
+    range_start, range_end = resolved_range
     project = _load_or_init_project(config_path)
     selected = _select_sources(project, source)
     generate_paths = _resolve_generate_paths(
@@ -791,48 +804,6 @@ def _blend_rgb(
 ) -> tuple[int, int, int]:
     clamped_weight = max(0.0, min(1.0, weight_to_white))
     return tuple(round(channel + (255 - channel) * clamped_weight) for channel in rgb)
-
-
-def _resolve_range(
-    from_date: date | None,
-    to_date: date | None,
-    past_weeks: int | None,
-    future_weeks: int | None,
-) -> tuple[date, date]:
-    has_absolute = from_date is not None or to_date is not None
-    has_relative = past_weeks is not None or future_weeks is not None
-
-    if has_absolute and has_relative:
-        raise typer.BadParameter(
-            "Use either --from/--to or --past-weeks/--future-weeks, not both."
-        )
-
-    if has_absolute:
-        if from_date is None or to_date is None:
-            raise typer.BadParameter(
-                "Both --from and --to are required for absolute ranges."
-            )
-        if to_date < from_date:
-            raise typer.BadParameter("--to cannot be before --from.")
-        return from_date, to_date
-
-    current_day = date.today()
-    effective_past_weeks = past_weeks or 0
-    effective_future_weeks = future_weeks or 0
-    start = current_day - timedelta(weeks=effective_past_weeks)
-    end = current_day + timedelta(weeks=effective_future_weeks)
-    if end < start:
-        raise typer.BadParameter("Computed relative range is invalid.")
-    return start, end
-
-
-def _parse_iso_date(value: str | None, option_name: str) -> date | None:
-    if value is None:
-        return None
-    try:
-        return date.fromisoformat(value)
-    except ValueError as exc:
-        raise typer.BadParameter(f"Invalid date for {option_name}: {value}") from exc
 
 
 def _select_sources(project: ProjectFile, names: list[str]) -> list[IndicoSource]:
