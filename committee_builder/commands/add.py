@@ -9,6 +9,7 @@ from typing import Any
 import typer
 
 from committee_builder.commands.sources import add_source_command
+from committee_builder.commands.add_minutes import add_minutes_command
 from committee_builder.io.yaml_io import read_yaml, write_yaml
 
 logger = logging.getLogger(__name__)
@@ -65,47 +66,3 @@ def add_indico_category_command(
 ) -> None:
     """Add an Indico category source to project configuration."""
     add_source_command(config=project_config, category_url=category_url, title=title)
-
-
-def add_minutes_command(
-    project_yaml: Path = typer.Argument(
-        ..., exists=True, dir_okay=False, readable=True, help="Project YAML path."
-    ),
-    event_id: str = typer.Argument(..., help="Event id to update."),
-    minutes_file: Path = typer.Argument(
-        ...,
-        exists=True,
-        dir_okay=False,
-        readable=True,
-        help="Minutes text/markdown path.",
-    ),
-    field: str = typer.Option(
-        "minutes_md",
-        "--field",
-        help="Event markdown field to fill (minutes_md or summary_md).",
-    ),
-) -> None:
-    """Import minutes text file content into an event markdown field."""
-    if field not in {"minutes_md", "summary_md"}:
-        raise typer.BadParameter("--field must be minutes_md or summary_md.")
-
-    payload = read_yaml(project_yaml)
-    events = payload.get("events", [])
-    if not isinstance(events, list):
-        raise typer.BadParameter("`events` must be a list in the project YAML.")
-
-    minutes_text = minutes_file.read_text(encoding="utf-8").strip()
-    for event in events:
-        if isinstance(event, dict) and event.get("id") == event_id:
-            event[field] = minutes_text
-            write_yaml(project_yaml, payload)
-            logger.info(
-                "Imported %s into event '%s' (%s) in %s",
-                minutes_file,
-                event_id,
-                field,
-                project_yaml,
-            )
-            return
-
-    raise typer.BadParameter(f"Event not found: {event_id}")
