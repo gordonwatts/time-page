@@ -65,4 +65,13 @@ def add_indico_category_command(
     ),
 ) -> None:
     """Add an Indico category source to project configuration."""
-    add_source_command(config=project_config, category_url=category_url, title=title)
+    add_source_command(
+        config=project_config,
+        category_url=category_url,
+        title=title,
+        api_key_env="INDICO_API_KEY",
+        api_token_env="INDICO_API_TOKEN",
+        color=None,
+        title_match=None,
+        title_exclude=None,
+    )
