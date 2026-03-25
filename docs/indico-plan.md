@@ -1,47 +1,55 @@
-## Proposed Indico ingestion workflow (planning)
+## Indico ingestion architecture (fetch during build)
 
-This section captures the planned implementation for importing meetings from Indico categories and producing YAML files that are directly ingestable by `committee build`.
+This document describes the current architecture where Indico categories are configured in the main project YAML and fetched during `committee build`.
 
-### Required dependency and docs source
+## Master project file model
 
-- Use the **official Python package**: `indico-client` (PyPI: https://pypi.org/project/indico-client/).
-- Use the **official product documentation** for implementation details and authentication patterns: https://developer.indicodata.ai/docs/getting-started.
-- Do **not** implement direct ad-hoc HTTP calls when equivalent functionality exists in `indico-client`; the client library is the primary integration path.
+- A single project YAML is the source of truth for:
+  - project metadata
+  - date window
+  - local events
+  - `indico_category_sources`
+- Build does **not** require a separate generated meetings YAML.
+- Legacy field names are still migrated for compatibility (`committee` -> `metadata` + `date_window`, `sources` -> `indico_category_sources`).
 
-### CLI and config goals
+## Runtime flow
 
-1. Add a project config file (e.g. `.committee.indico.yaml`) to track multiple Indico category sources.
-   - User can have multiple project files - so the project file needs to be specified by the user for all project related commands.
-3. Add source management commands:
-   - `committee sources add`
-   - `committee sources list`
-   - `committee sources remove`
-4. Add meeting generation command - to output a yaml file with a meetings list:
-   - `committee sources generate project.yaml --from YYYY-MM-DD --to YYYY-MM-DD` - default output will be `project-meetings.yaml`, or `--output`.
-   - convenience ranges like `--past-weeks 3 --future-weeks 1`
+1. Load and validate project YAML.
+2. Resolve the effective date window.
+3. Fetch meetings from every configured `indico_category_sources` entry for that window.
+4. Convert remote meeting payloads to `events` (including markdown conversion and contribution/document extraction).
+5. Merge imported events with local events.
+   - Collision rule: local YAML event wins when IDs match.
+6. Render markdown and generate a standalone HTML page.
 
-### Authentication approach
+## Date precedence (with explicit examples)
 
-- Support private feeds by reading credentials from environment variables or a .env file in the home directory.
-- Config stores env-var names (for example `INDICO_API_KEY`, `INDICO_API_TOKEN`) rather than raw secrets.
-- The command resolves env vars at runtime and initializes `indico-client` with those credentials.
+Effective build date window precedence:
 
-### Output contract
+1. CLI absolute range `--from` + `--to`
+2. CLI relative range `--past-weeks` + `--future-weeks`
+3. Project file `date_window.start_date` + `date_window.end_date`
+4. Default fallback when no explicit end date exists: today ± 1 week
 
-- Generated YAML (`project-meetings.yaml`) must validate against existing schema and be directly consumable by:
-  - `committee validate <generated.yaml>`
-  - `committee build <generated.yaml>`
-- Event mapping should be deterministic:
-  - stable generated IDs (`<source-name>-<remote-id>`)
-  - normalized date handling
-  - sorted output for low-noise diffs.
+Examples:
 
-### High-level implementation phases
+- `committee build project.yaml` with YAML window `2024-01-01`..`2024-12-31` uses **2024-01-01** to **2024-12-31**.
+- `committee build project.yaml --from 2025-01-01 --to 2025-03-31` uses **2025-01-01** to **2025-03-31**.
+- `committee build project.yaml --past-weeks 2 --future-weeks 4` uses **today - 2 weeks** to **today + 4 weeks**.
+- If YAML has only `start_date` and no `end_date`, `committee build project.yaml` falls back to **today - 1 week** through **today + 1 week**.
 
-1. Add typed config models and YAML IO support for Indico source configuration.
-2. Implement source-management CLI commands.
-3. Implement Indico integration layer using `indico-client`.
-4. Implement transformation from fetched meetings to `CommitteeHistory` schema events.
-5. Implement `meetings generate` command with absolute and relative date range options.
-6. Add pytest coverage for config operations, API client mocking, and generated YAML compatibility.
-7. Update README usage examples end-to-end.
+## Warning fallback behavior
+
+The build pipeline prefers continuing with warnings when possible:
+
+- Missing `date_window.end_date` (and no CLI overrides): logs a warning and uses today ± 1 week.
+- Auth-required source without usable credentials: logs warning, skips that source, continues.
+- Imported event ID duplicates local event ID: logs warning, keeps local event.
+
+These warnings are visible by default and are easier to inspect with `committee -v` or `committee -vv`.
+
+## Command implications
+
+- `committee build <project.yaml>` is the primary ingestion/build command.
+- `committee indico generate` is deprecated; use build-time fetch instead.
+- `committee indico add|list|remove|api-key` manage source metadata and credentials.

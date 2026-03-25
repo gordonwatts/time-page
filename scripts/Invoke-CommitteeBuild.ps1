@@ -23,42 +23,20 @@ else {
     $Config
 }
 
-$configDirectory = Split-Path -Parent $configPath
-$configStem = [System.IO.Path]::GetFileNameWithoutExtension($configPath)
-$generatedYaml = if ([string]::IsNullOrEmpty($configDirectory)) {
-    "$configStem-generated.yaml"
-}
-else {
-    Join-Path $configDirectory "$configStem-generated.yaml"
-}
-
-$builtHtml = [System.IO.Path]::ChangeExtension($generatedYaml, '.html')
-
-$generateArgs = @(
-    '--from', 'git+https://github.com/gordonwatts/time-page.git',
-    'committee', 'indico', 'generate',
-    $Config,
-    '--from', $fromDateIso,
-    '--to', $toDateIso
-)
+$builtHtml = [System.IO.Path]::ChangeExtension($configPath, '.html')
 
 $buildArgs = @(
     '--from', 'git+https://github.com/gordonwatts/time-page.git',
     'committee', 'build',
-    $generatedYaml
+    $configPath,
+    '--from', $fromDateIso,
+    '--to', $toDateIso,
+    '--overwrite'
 )
 
-$generateCmd = "uvx $($generateArgs -join ' ')"
 $buildCmd = "uvx $($buildArgs -join ' ')"
 
 $null = Get-Command uvx -ErrorAction Stop
-
-if ($PSCmdlet.ShouldProcess($generateCmd, "Invoke")) {
-    & uvx @generateArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Generate command failed with exit code $LASTEXITCODE"
-    }
-}
 
 if ($PSCmdlet.ShouldProcess($buildCmd, "Invoke")) {
     & uvx @buildArgs
@@ -66,3 +44,5 @@ if ($PSCmdlet.ShouldProcess($buildCmd, "Invoke")) {
         throw "Build command failed with exit code $LASTEXITCODE"
     }
 }
+
+Write-Verbose "Built HTML: $builtHtml"
