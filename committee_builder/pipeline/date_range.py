@@ -106,7 +106,11 @@ def resolve_build_range(
     today: date | None = None,
 ) -> tuple[date, date]:
     """Resolve the effective build range with CLI, project, and default precedence."""
-    cli_range = resolve_cli_range(options, require_absolute_pair=True)
+    cli_range = resolve_cli_range(
+        options,
+        require_absolute_pair=True,
+        today=today,
+    )
     if cli_range is not None:
         return cli_range
 
