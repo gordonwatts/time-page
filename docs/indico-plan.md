@@ -51,5 +51,5 @@ These warnings are visible by default and are easier to inspect with `committee 
 ## Command implications
 
 - `committee build <project.yaml>` is the primary ingestion/build command.
-- `committee indico generate` is deprecated; use build-time fetch instead.
+- Use `committee build --from YYYY-MM-DD --to YYYY-MM-DD` (or relative week options) to override ingest date windows.
 - `committee indico add|list|remove|api-key` manage source metadata and credentials.
