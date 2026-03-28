@@ -16,7 +16,6 @@ from committee_builder.commands.init import init_command
 from committee_builder.commands.sources import (
     add_source_command,
     api_key_command,
-    generate_sources_command,
     list_sources_command,
     remove_source_command,
 )
@@ -98,12 +97,6 @@ indico_app.command(
 indico_app.command("remove", help="Remove an Indico category from the config.")(
     remove_source_command
 )
-indico_app.command(
-    "generate",
-    hidden=True,
-    help="Deprecated: use `committee build` with date overrides.",
-)(generate_sources_command)
-
 app.add_typer(indico_app, name="indico")
 
 

@@ -77,7 +77,6 @@ data/committee.project.html
 - `committee indico list PROJECT_YAML`
 - `committee indico remove PROJECT_YAML SOURCE_NAME`
 - `committee indico api-key BASE_URL TOKEN [--api-key-env ENV]`
-- `committee indico generate ...` *(deprecated/hidden; use `committee build`)*
 
 ## Indico workflow (single master project file)
 
@@ -99,6 +98,8 @@ committee indico add data/committee.project.yaml https://indico.example.org/cate
 ```bash
 committee build data/committee.project.yaml --from 2024-01-01 --to 2024-12-31 --overwrite
 ```
+
+Use `committee build` with `--from/--to` (or `--past-weeks/--future-weeks`) whenever you need date overrides for Indico ingestion.
 
 ### Date precedence and fallback behavior
 

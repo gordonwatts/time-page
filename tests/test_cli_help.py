@@ -58,3 +58,9 @@ def test_indico_help_has_list_remove_and_api_key() -> None:
     assert "remove" in result.stdout
     assert "api-key" in result.stdout
     assert "generate" not in result.stdout
+
+
+def test_indico_generate_command_is_unregistered() -> None:
+    result = runner.invoke(app, ["indico", "generate", "--help"])
+    assert result.exit_code != 0
+    assert "No such command 'generate'" in result.output
