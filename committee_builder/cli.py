@@ -62,7 +62,7 @@ app.command("build", help="Generate a standalone HTML page from a YAML source fi
 app.command(
     "validate", help="Validate a YAML source file against schema and semantic checks."
 )(validate_command)
-app.command("init", help="Create a starter YAML source file.")(init_command)
+app.command("init", help="Create a blank YAML source file.")(init_command)
 
 add_app = typer.Typer(help="Add events, Indico categories, and minutes content.")
 add_app.command("event", help="Add a local event entry to project YAML.")(

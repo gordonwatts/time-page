@@ -35,7 +35,7 @@ uvx --from . committee build examples/committee.example.yaml --overwrite
 
 ## Quickstart
 
-1. Create a starter master project file:
+1. Create a blank master project file:
 
 ```bash
 committee init data/committee.project.yaml
@@ -108,7 +108,7 @@ Effective build date window precedence is:
 1. CLI absolute range `--from` + `--to`
 2. CLI relative range `--past-weeks` + `--future-weeks`
 3. `date_window` in project YAML
-4. Default fallback: today ± 1 week, with a warning log
+4. Default fallback: today Â± 1 week, with a warning log
 
 Explicit examples:
 
