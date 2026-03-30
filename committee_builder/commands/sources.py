@@ -16,6 +16,7 @@ from committee_builder.indico.client import (
     fetch_category_title,
 )
 from committee_builder.indico.credentials import normalize_base_url, store_api_key
+from committee_builder.io.paths import normalize_yaml_path
 from committee_builder.io.yaml_io import (
     load_project_file,
     save_project_file,
@@ -372,9 +373,7 @@ def remove_source_command(
 
 
 def _normalize_config_path(config: Path) -> Path:
-    if config.suffix:
-        return config
-    return config.with_suffix(".yaml")
+    return normalize_yaml_path(config)
 
 
 def _parse_category_url(category_url: str) -> tuple[str, int]:

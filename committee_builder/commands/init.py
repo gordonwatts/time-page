@@ -8,6 +8,7 @@ from typing import Any
 
 import typer
 
+from committee_builder.io.paths import normalize_yaml_path
 from committee_builder.io.yaml_io import write_yaml
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ def _build_starter_doc(
 
 def init_command(
     path: Path = typer.Argument(
-        ..., help="Path where the blank YAML should be created."
+        ..., help="Path where the blank YAML should be created (.yaml added if omitted)."
     ),
     force: bool = typer.Option(
         False, "--force", help="Overwrite existing file if present."
@@ -68,6 +69,7 @@ def init_command(
     ),
 ) -> None:
     """Create a blank YAML source file."""
+    path = normalize_yaml_path(path)
     if path.exists() and not force:
         logger.error("File already exists: %s (use --force to overwrite)", path)
         raise typer.Exit(code=1)
@@ -76,4 +78,3 @@ def init_command(
         path, _build_starter_doc(title=title, from_date=from_date, to_date=to_date)
     )
     logger.info("Blank project file created: %s", path)
-

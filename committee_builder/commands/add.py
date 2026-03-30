@@ -10,6 +10,7 @@ import typer
 
 from committee_builder.commands.sources import add_source_command
 from committee_builder.commands.add_minutes import add_minutes_command
+from committee_builder.io.paths import normalize_yaml_path
 from committee_builder.io.yaml_io import read_yaml, write_yaml
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def add_event_command(
     project_yaml: Path = typer.Argument(
-        ..., exists=True, dir_okay=False, readable=True, help="Project YAML path."
+        ..., dir_okay=False, help="Project YAML path or project name (adds .yaml if omitted)."
     ),
     title: str = typer.Option(..., "--title", help="Event title."),
     date: str = typer.Option(..., "--date", help="Event date in YYYY-MM-DD."),
@@ -28,6 +29,9 @@ def add_event_command(
     ),
 ) -> None:
     """Add a local event entry directly to a project YAML file."""
+    project_yaml = normalize_yaml_path(project_yaml)
+    if not project_yaml.is_file():
+        raise typer.BadParameter(f"Project file not found: {project_yaml}")
     payload = read_yaml(project_yaml)
     events = payload.setdefault("events", [])
     if not isinstance(events, list):

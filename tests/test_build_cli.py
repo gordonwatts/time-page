@@ -97,3 +97,13 @@ def test_build_rejects_mixing_absolute_and_relative_range_flags() -> None:
         )
         assert result.exit_code != 0
         assert "Use either --from/--to or --past-weeks/--future-weeks" in result.output
+
+
+def test_build_adds_yaml_suffix_when_omitted() -> None:
+    with runner.isolated_filesystem():
+        Path("committee.yaml").write_text(SAMPLE, encoding="utf-8")
+
+        result = runner.invoke(app, ["build", "committee"])
+
+        assert result.exit_code == 0
+        assert Path("committee.html").exists()
