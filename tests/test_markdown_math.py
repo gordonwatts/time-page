@@ -34,7 +34,6 @@ def test_markdown_renders_inline_images() -> None:
 
 def test_markdown_links_open_in_new_tab() -> None:
     html = render_markdown("[Link To Indico](https://indico.cern.ch/event/1)")
-    assert (
-        '<a target="_blank" rel="noopener noreferrer" href="https://indico.cern.ch/event/1">'
-        in html
-    )
+    assert 'href="https://indico.cern.ch/event/1"' in html
+    assert 'target="_blank"' in html
+    assert 'rel="noopener noreferrer"' in html
