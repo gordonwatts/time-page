@@ -19,7 +19,7 @@ def add_event_command(
     project_yaml: Path = typer.Argument(
         ..., exists=True, dir_okay=False, readable=True, help="Project YAML path."
     ),
-    title: str = typer.Option(..., "--title", help="Event title."),
+    title: str | None = typer.Option(None, "--title", help="Event title."),
     date: str = typer.Option(..., "--date", help="Event date in YYYY-MM-DD."),
     event_id: str | None = typer.Option(None, "--id", help="Optional event id."),
     event_type: str = typer.Option("meeting", "--type", help="Event type."),
@@ -34,10 +34,13 @@ def add_event_command(
         raise typer.BadParameter("`events` must be a list in the project YAML.")
 
     new_event_id = event_id or f"evt-{len(events) + 1:03d}"
+    event_title = title.strip() if title is not None else ""
+    if not event_title:
+        event_title = f"{date} - Event Title"
     event_doc: dict[str, Any] = {
         "id": new_event_id,
         "type": event_type,
-        "title": title,
+        "title": event_title,
         "date": date,
         "important": False,
         "summary_md": summary_md,
