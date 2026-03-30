@@ -75,6 +75,7 @@ h6 { margin: 0 0 8px; font-size: 0.8rem; color: var(--muted); text-transform: up
 .pill { border-radius: 999px; padding: 2px 8px; font-size: 0.72rem; border: 1px solid transparent; white-space: nowrap; }
 .pill.small { padding: 1px 6px; font-size: 0.65rem; }
 .timeline-pills { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.timeline-pills .pill { max-width: 10rem; white-space: normal; overflow-wrap: anywhere; text-align: center; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-block; border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 8px; font-size: 0.75rem; }
 .chip.muted { color: var(--muted); }
