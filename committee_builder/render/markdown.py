@@ -13,7 +13,7 @@ def _link_open_new_tab(
     options: object,
     env: object,
 ) -> str:
-    """Render link_open tokens with target/_blank and rel=noopener."""
+    """Render link_open tokens with target="_blank" and rel="noopener noreferrer"."""
     tokens[idx].attrSet("target", "_blank")
     tokens[idx].attrSet("rel", "noopener noreferrer")
     return self.renderToken(tokens, idx, options, env)  # type: ignore[attr-defined]
