@@ -56,6 +56,7 @@ def test_output_contains_inlined_assets_and_data(tmp_path: Path) -> None:
     assert '<script id="committee-data" type="application/json">' in text
     assert "Output Test" in text
     assert "timeline-item" in text
+    assert ".timeline-item:hover .timeline-content" in text
     assert 'class="search-clear${showClearSearch ? "" : " hidden"}"' in text
     assert 'aria-label="Clear search"' in text
     assert '"minutes_html":' in text
