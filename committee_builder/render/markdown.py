@@ -6,10 +6,24 @@ from markdown_it import MarkdownIt
 from mdit_py_plugins.dollarmath import dollarmath_plugin
 
 
+def _link_open_new_tab(
+    self: object,
+    tokens: list,
+    idx: int,
+    options: object,
+    env: object,
+) -> str:
+    """Render link_open tokens with target="_blank" and rel="noopener noreferrer"."""
+    tokens[idx].attrSet("target", "_blank")
+    tokens[idx].attrSet("rel", "noopener noreferrer")
+    return self.renderToken(tokens, idx, options, env)  # type: ignore[attr-defined]
+
+
 def _make_md() -> MarkdownIt:
     md = MarkdownIt("commonmark", {"html": False, "linkify": True, "typographer": True})
     md.enable("table")
     md.use(dollarmath_plugin)
+    md.add_render_rule("link_open", _link_open_new_tab)
     return md
 
 
