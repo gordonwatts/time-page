@@ -7,6 +7,7 @@ from pathlib import Path
 
 import typer
 
+from committee_builder.io.paths import normalize_yaml_path
 from committee_builder.pipeline.build_pipeline import build_html
 from committee_builder.pipeline.date_range import (
     parse_cli_range_options,
@@ -19,10 +20,8 @@ logger = logging.getLogger(__name__)
 def build_command(
     project_yaml: Path = typer.Argument(
         ...,
-        exists=True,
         dir_okay=False,
-        readable=True,
-        help="Path to the project YAML file.",
+        help="Path to the project YAML file (.yaml added if omitted).",
     ),
     output: Path | None = typer.Option(
         None,
@@ -52,6 +51,9 @@ def build_command(
 
     The output contains inlined CSS, JS, and committee data.
     """
+    project_yaml = normalize_yaml_path(project_yaml)
+    if not project_yaml.is_file():
+        raise typer.BadParameter(f"Project file not found: {project_yaml}")
     range_options = parse_cli_range_options(
         from_date=from_date,
         to_date=to_date,

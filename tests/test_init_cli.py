@@ -30,3 +30,10 @@ def test_init_creates_blank_valid_project_yaml() -> None:
             "events": [],
         }
 
+
+def test_init_adds_yaml_suffix_when_omitted() -> None:
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["init", "project"])
+
+        assert result.exit_code == 0
+        assert Path("project.yaml").exists()

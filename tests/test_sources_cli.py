@@ -171,3 +171,64 @@ def test_indico_add_normalizes_named_color() -> None:
         assert config_data["indico_category_sources"][0][
             "color"
         ] == _normalize_source_color("red")
+
+
+def test_add_event_adds_yaml_suffix_when_omitted() -> None:
+    with runner.isolated_filesystem():
+        Path("project.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": "1.0",
+                    "metadata": {"name": "Project"},
+                    "date_window": {
+                        "start_date": "2023-01-01",
+                        "end_date": "2023-01-31",
+                    },
+                    "event_type_styles": {},
+                    "events": [],
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "add",
+                "event",
+                "project",
+                "--title",
+                "Kickoff",
+                "--date",
+                "2023-01-10",
+            ],
+        )
+
+        assert result.exit_code == 0
+        written = yaml.safe_load(Path("project.yaml").read_text(encoding="utf-8"))
+        assert written["events"][0]["title"] == "Kickoff"
+
+
+def test_validate_adds_yaml_suffix_when_omitted() -> None:
+    with runner.isolated_filesystem():
+        Path("project.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": "1.0",
+                    "metadata": {"name": "Project"},
+                    "date_window": {
+                        "start_date": "2023-01-01",
+                        "end_date": "2023-01-31",
+                    },
+                    "event_type_styles": {},
+                    "events": [],
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(app, ["validate", "project"])
+
+        assert result.exit_code == 0

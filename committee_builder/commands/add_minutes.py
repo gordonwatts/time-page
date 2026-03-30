@@ -8,6 +8,7 @@ from typing import Any
 
 import typer
 
+from committee_builder.io.paths import normalize_yaml_path
 from committee_builder.io.yaml_io import read_yaml, write_yaml
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ def _collect_matching_events(
 
 def add_minutes_command(
     project_yaml: Path = typer.Argument(
-        ..., exists=True, dir_okay=False, readable=True, help="Project YAML path."
+        ..., dir_okay=False, help="Project YAML path or project name (adds .yaml if omitted)."
     ),
     event_selector: str = typer.Argument(
         ...,
@@ -73,6 +74,9 @@ def add_minutes_command(
     ),
 ) -> None:
     """Import minutes markdown into an event markdown field."""
+    project_yaml = normalize_yaml_path(project_yaml)
+    if not project_yaml.is_file():
+        raise typer.BadParameter(f"Project file not found: {project_yaml}")
     if field not in {"minutes_md", "summary_md"}:
         raise typer.BadParameter("--field must be minutes_md or summary_md.")
     if date is not None and title is None:

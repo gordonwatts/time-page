@@ -141,3 +141,20 @@ def test_add_minutes_preserves_markdown_newlines() -> None:
         assert result.exit_code == 0
         written = yaml.safe_load(project.read_text(encoding="utf-8"))
         assert written["events"][0]["minutes_md"] == markdown
+
+
+def test_add_minutes_adds_yaml_suffix_when_omitted() -> None:
+    with runner.isolated_filesystem():
+        project = Path("committee.yaml")
+        minutes = Path("minutes.md")
+        project.write_text(PROJECT_YAML, encoding="utf-8")
+        minutes.write_text("## Minutes\n\n- Approved", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["add", "minutes", "committee", "evt-1", str(minutes)],
+        )
+
+        assert result.exit_code == 0
+        written = yaml.safe_load(project.read_text(encoding="utf-8"))
+        assert written["events"][0]["minutes_md"] == "## Minutes\n\n- Approved"
