@@ -120,5 +120,7 @@ indico_category_sources:
     assert "Skip me" not in rendered
     # Imported markdown conversion should be represented in serialized payload.
     assert "Talk minutes" in rendered
+    # Timeline short label should list document-backed talk titles instead of repeating the meeting title.
+    assert '"short_label": "Operations report"' in rendered
     # Source attribution should carry through for imported events.
     assert '"source_name": "CERN"' in rendered

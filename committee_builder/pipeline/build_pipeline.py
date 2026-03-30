@@ -115,6 +115,21 @@ def _contributions_with_documents(
     return [contribution for contribution in contributions if contribution.documents]
 
 
+def _meeting_short_label(contributions: list[IndicoContribution]) -> str | None:
+    titles: list[str] = []
+    seen: set[str] = set()
+    for contribution in _contributions_with_documents(contributions):
+        title = contribution.title.strip()
+        if not title:
+            continue
+        key = title.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        titles.append(title)
+    return ", ".join(titles) or None
+
+
 def _build_document_ref(document: IndicoDocument) -> DocumentRef:
     return DocumentRef(
         label=document.label,
@@ -161,6 +176,7 @@ def _meeting_to_event(
         title=meeting.title,
         date=meeting.start_datetime.date(),
         important=is_interesting_meeting,
+        short_label=_meeting_short_label(meeting.contributions),
         summary_md=_build_meeting_summary_md(meeting, base_url=base_url)
         or f"Imported from source `{source_name}`.",
         minutes_md=html_to_markdown(meeting.minutes, base_url=base_url) or None,
