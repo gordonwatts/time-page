@@ -35,7 +35,7 @@ uvx --from . committee build examples/committee.example.yaml --overwrite
 
 ## Quickstart
 
-1. Create a starter master project file:
+1. Create a blank master project file:
 
 ```bash
 committee init data/committee.project.yaml
