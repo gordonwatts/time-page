@@ -63,7 +63,7 @@ h6 { margin: 0 0 8px; font-size: 0.8rem; color: var(--muted); text-transform: up
 .timeline-item:hover .timeline-content,
 .timeline-item:focus-visible .timeline-content { background: #f8fafc; }
 .timeline-item.selected { border-color: #0f172a; box-shadow: 0 0 0 2px #cbd5e1; }
-.timeline-content { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #fff; border: 1px solid var(--border); }
+.timeline-content { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(7rem, 14rem); gap: 8px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #fff; border: 1px solid var(--border); }
 .timeline-item.minor .timeline-content { padding-top: 8px; padding-bottom: 8px; }
 .timeline-item.minor .title { font-size: 0.8rem; }
 .timeline-rail { position: relative; display: flex; align-items: flex-start; justify-content: center; padding-top: 10px; }
@@ -74,8 +74,8 @@ h6 { margin: 0 0 8px; font-size: 0.8rem; color: var(--muted); text-transform: up
 .title { min-width: 0; overflow-wrap: anywhere; }
 .pill { border-radius: 999px; padding: 2px 8px; font-size: 0.72rem; border: 1px solid transparent; white-space: nowrap; }
 .pill.small { padding: 1px 6px; font-size: 0.65rem; }
-.timeline-pills { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
-.timeline-pills .pill { max-width: 10rem; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+.timeline-pills { min-width: 0; width: 100%; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; align-content: center; gap: 4px; }
+.timeline-pills .pill { display: inline-flex; align-items: center; justify-content: center; max-width: min(100%, 14rem); white-space: normal; overflow-wrap: break-word; text-align: center; line-height: 1.2; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-block; border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 8px; font-size: 0.75rem; }
 .chip.muted { color: var(--muted); }
@@ -105,4 +105,5 @@ h6 { margin: 0 0 8px; font-size: 0.8rem; color: var(--muted); text-transform: up
   .timeline-content { grid-template-columns: 1fr; }
   .timeline-item.major .short { grid-column: 1; }
   .timeline-pills { justify-content: flex-start; }
+  .timeline-pills .pill { max-width: min(100%, 16rem); }
 }
