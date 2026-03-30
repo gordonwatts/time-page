@@ -100,7 +100,52 @@ indico_category_sources:
                             )
                         ],
                         minutes="<p>Talk minutes</p>",
-                    )
+                    ),
+                    IndicoContribution(
+                        title="Detector status",
+                        documents=[
+                            IndicoDocument(
+                                label="detector.pdf",
+                                url="https://indico.example.com/files/detector.pdf",
+                            )
+                        ],
+                    ),
+                    IndicoContribution(
+                        title="Software update",
+                        documents=[
+                            IndicoDocument(
+                                label="software.pdf",
+                                url="https://indico.example.com/files/software.pdf",
+                            )
+                        ],
+                    ),
+                    IndicoContribution(
+                        title="DAQ review",
+                        documents=[
+                            IndicoDocument(
+                                label="daq.pdf",
+                                url="https://indico.example.com/files/daq.pdf",
+                            )
+                        ],
+                    ),
+                    IndicoContribution(
+                        title="Physics outlook",
+                        documents=[
+                            IndicoDocument(
+                                label="physics.pdf",
+                                url="https://indico.example.com/files/physics.pdf",
+                            )
+                        ],
+                    ),
+                    IndicoContribution(
+                        title="Scheduling",
+                        documents=[
+                            IndicoDocument(
+                                label="schedule.pdf",
+                                url="https://indico.example.com/files/schedule.pdf",
+                            )
+                        ],
+                    ),
                 ],
             ),
         ]
@@ -120,7 +165,10 @@ indico_category_sources:
     assert "Skip me" not in rendered
     # Imported markdown conversion should be represented in serialized payload.
     assert "Talk minutes" in rendered
-    # Timeline short label should list document-backed talk titles instead of repeating the meeting title.
-    assert '"short_label": "Operations report"' in rendered
+    # Timeline short label should list up to five document-backed talk titles and then indicate truncation.
+    assert (
+        '"short_label": "Operations report, Detector status, Software update, '
+        'DAQ review, Physics outlook, ..."' in rendered
+    )
     # Source attribution should carry through for imported events.
     assert '"source_name": "CERN"' in rendered

@@ -127,7 +127,11 @@ def _meeting_short_label(contributions: list[IndicoContribution]) -> str | None:
             continue
         seen.add(key)
         titles.append(title)
-    return ", ".join(titles) or None
+    if not titles:
+        return None
+    if len(titles) <= 5:
+        return ", ".join(titles)
+    return f"{', '.join(titles[:5])}, ..."
 
 
 def _build_document_ref(document: IndicoDocument) -> DocumentRef:
