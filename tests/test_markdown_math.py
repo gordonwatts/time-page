@@ -30,3 +30,11 @@ def test_markdown_allows_br_tags_in_generated_content() -> None:
 def test_markdown_renders_inline_images() -> None:
     html = render_markdown("![plot](https://indico.cern.ch/event/1/attachments/2/3/plot.png)")
     assert '<img src="https://indico.cern.ch/event/1/attachments/2/3/plot.png"' in html
+
+
+def test_markdown_links_open_in_new_tab() -> None:
+    html = render_markdown("[Link To Indico](https://indico.cern.ch/event/1)")
+    assert (
+        '<a target="_blank" rel="noopener noreferrer" href="https://indico.cern.ch/event/1">'
+        in html
+    )

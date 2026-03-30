@@ -24,8 +24,12 @@ def render_markdown(text: str | None) -> str:
     if not text:
         return ""
     rendered = _MD.render(text)
-    return (
+    rendered = (
         rendered.replace("&lt;br&gt;", "<br>")
         .replace("&lt;br/&gt;", "<br>")
         .replace("&lt;br /&gt;", "<br>")
+    )
+    return rendered.replace(
+        "<a href=",
+        '<a target="_blank" rel="noopener noreferrer" href=',
     )
