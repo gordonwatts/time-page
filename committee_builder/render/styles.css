@@ -60,7 +60,8 @@ h6 { margin: 0 0 8px; font-size: 0.8rem; color: var(--muted); text-transform: up
 .timeline-divider-line { position: absolute; left: 22px; right: 0; top: 50%; height: 2px; background: var(--timeline-line); border-radius: 999px; transform: translateY(-50%); }
 .timeline-divider-pill { position: relative; z-index: 1; margin-left: 8px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--muted); font-size: 0.72rem; }
 .timeline-item { width: 100%; text-align: left; border: 1px solid transparent; background: transparent; border-radius: 12px; padding: 8px 8px 8px 0; margin-bottom: 6px; display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: stretch; gap: 10px; cursor: pointer; }
-.timeline-item:hover { background: #f8fafc; }
+.timeline-item:hover .timeline-content,
+.timeline-item:focus-visible .timeline-content { background: #f8fafc; }
 .timeline-item.selected { border-color: #0f172a; box-shadow: 0 0 0 2px #cbd5e1; }
 .timeline-content { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #fff; border: 1px solid var(--border); }
 .timeline-item.minor .timeline-content { padding-top: 8px; padding-bottom: 8px; }
