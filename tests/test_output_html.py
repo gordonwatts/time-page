@@ -57,6 +57,14 @@ def test_output_contains_inlined_assets_and_data(tmp_path: Path) -> None:
     assert "Output Test" in text
     assert "timeline-item" in text
     assert ".timeline-item:hover .timeline-content" in text
+    assert ".timeline-content { min-width: 0; display: flex; flex-wrap: wrap; align-items: center;" in text
+    assert ".title { min-width: 0; flex: 1 1 12rem; overflow-wrap: break-word; }" in text
+    assert ".timeline-pills { min-width: 0; flex: 0 1 14rem; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center;" in text
+    assert ".timeline-pills .pill" in text
+    assert "display: inline-flex" in text
+    assert "align-items: center" in text
+    assert "justify-content: center" in text
+    assert "max-width: min(100%, 14rem)" in text
     assert 'class="search-clear${showClearSearch ? "" : " hidden"}"' in text
     assert 'aria-label="Clear search"' in text
     assert '"minutes_html":' in text
