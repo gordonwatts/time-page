@@ -16,7 +16,8 @@ dependencies = [
   "markdown-it-py>=3.0.0",
   "markdownify>=1.2.0",
   "mdit-py-plugins>=0.4.1",
-  "requests>=2.32.0"
+  "requests>=2.32.0",
+  "webcolors>=24.11.1"
 ]
 
 [project.optional-dependencies]

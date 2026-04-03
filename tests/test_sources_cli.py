@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+import typer
 from typer.testing import CliRunner
 
 from committee_builder.cli import app
@@ -171,6 +172,17 @@ def test_indico_add_normalizes_named_color() -> None:
         assert config_data["indico_category_sources"][0][
             "color"
         ] == _normalize_source_color("red")
+
+
+def test_normalize_source_color_accepts_webcolors_name() -> None:
+    assert _normalize_source_color("darkslategrey") == _normalize_source_color(
+        "#2f4f4f"
+    )
+
+
+def test_normalize_source_color_rejects_unknown_name() -> None:
+    with pytest.raises(typer.BadParameter, match="Unsupported color"):
+        _normalize_source_color("not-a-real-color")
 
 
 def test_add_event_adds_yaml_suffix_when_omitted() -> None:
