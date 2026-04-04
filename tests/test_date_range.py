@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
 import typer
 
 from committee_builder.pipeline import date_range
+from committee_builder.date_parsing import parse_date_expression
 from committee_builder.pipeline.date_range import (
     ParsedRangeOptions,
+    parse_date_option,
     parse_cli_range_options,
-    parse_iso_date_option,
     resolve_build_range,
     resolve_cli_range,
 )
@@ -135,16 +136,53 @@ def test_resolve_build_range_defaults_and_warns_when_project_end_missing(
     assert "2026-03-31" in caplog.text
 
 
-def test_parse_cli_range_options_rejects_invalid_iso() -> None:
-    with pytest.raises(typer.BadParameter, match="--from must be in YYYY-MM-DD"):
+def test_parse_cli_range_options_rejects_invalid_expression() -> None:
+    with pytest.raises(
+        typer.BadParameter, match="--from must be a valid date expression"
+    ):
         parse_cli_range_options(
-            from_date="2026/03/24",
+            from_date="definitely-not-a-date",
             to_date=None,
             past_weeks=None,
             future_weeks=None,
         )
 
 
-def test_parse_iso_date_option_rejects_invalid_date() -> None:
-    with pytest.raises(typer.BadParameter, match="--to must be in YYYY-MM-DD"):
-        parse_iso_date_option("2026-13-40", option_name="--to")
+def test_parse_date_option_accepts_relative_shorthand(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "committee_builder.date_parsing.current_datetime",
+        lambda: datetime(2026, 3, 24, 15, 0, 0),
+    )
+
+    assert parse_date_option("-2w", option_name="--from") == date(2026, 3, 10)
+
+
+def test_parse_date_expression_accepts_natural_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "committee_builder.date_parsing.current_datetime",
+        lambda: datetime(2026, 3, 24, 15, 0, 0),
+    )
+
+    assert parse_date_expression("now", label="date_window") == date(2026, 3, 24)
+
+
+def test_resolve_build_range_accepts_yaml_date_expressions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "committee_builder.date_parsing.current_datetime",
+        lambda: datetime(2026, 3, 24, 15, 0, 0),
+    )
+    project_path = tmp_path / "committee.yaml"
+    _write_project(project_path, start_date="-2w", end_date="now")
+
+    resolved = resolve_build_range(
+        project_yaml=project_path,
+        options=ParsedRangeOptions(None, None, None, None),
+    )
+
+    assert resolved == (date(2026, 3, 10), date(2026, 3, 24))

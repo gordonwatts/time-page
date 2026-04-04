@@ -35,10 +35,10 @@ def build_command(
         help="Allow overwriting an existing output file.",
     ),
     from_date: str | None = typer.Option(
-        None, "--from", help="Override start date (YYYY-MM-DD)."
+        None, "--from", help="Override start date (ISO, now, -3d, +2w, etc.)."
     ),
     to_date: str | None = typer.Option(
-        None, "--to", help="Override end date (YYYY-MM-DD)."
+        None, "--to", help="Override end date (ISO, now, +2w, -3d, etc.)."
     ),
     past_weeks: int | None = typer.Option(
         None, "--past-weeks", help="Bracket range start relative to today."

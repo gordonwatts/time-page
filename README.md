@@ -67,9 +67,9 @@ data/committee.project.html
 
 ## CLI commands
 
-- `committee build PROJECT_YAML [--output PATH] [--overwrite] [--from YYYY-MM-DD --to YYYY-MM-DD] [--past-weeks N --future-weeks M]`
+- `committee build PROJECT_YAML [--output PATH] [--overwrite] [--from DATE_EXPR --to DATE_EXPR] [--past-weeks N --future-weeks M]`
 - `committee validate PROJECT_YAML`
-- `committee init PATH [--force] [--title TEXT] [--from YYYY-MM-DD] [--to YYYY-MM-DD]`
+- `committee init PATH [--force] [--title TEXT] [--from DATE_EXPR] [--to DATE_EXPR]`
 - `committee add event PROJECT_YAML ...`
 - `committee add indico PROJECT_YAML CATEGORY_URL [--title TITLE]`
 - `committee add minutes PROJECT_YAML EVENT_ID MINUTES_PATH [--mode append|replace] [--target event|contribution] [--contribution-index N] [--contribution-title TITLE]`
@@ -97,9 +97,10 @@ committee indico add data/committee.project.yaml https://indico.example.org/cate
 
 ```bash
 committee build data/committee.project.yaml --from 2024-01-01 --to 2024-12-31 --overwrite
+committee build data/committee.project.yaml --from -3w --to now --overwrite
 ```
 
-Use `committee build` with `--from/--to` (or `--past-weeks/--future-weeks`) whenever you need date overrides for Indico ingestion.
+Use `committee build` with `--from/--to` (or `--past-weeks/--future-weeks`) whenever you need date overrides for Indico ingestion. `--from` and `--to` accept ISO dates, natural-language expressions that `dateparser` understands, and short relative forms such as `now`, `-3d`, `+2w`, `-1m`, and `-1y`.
 
 ### Date precedence and fallback behavior
 
@@ -114,8 +115,11 @@ Explicit examples:
 
 - If YAML has `start_date: 2024-01-01` and `end_date: 2024-12-31`, then `committee build project.yaml` uses **2024-01-01 through 2024-12-31**.
 - `committee build project.yaml --from 2025-01-01 --to 2025-03-31` overrides YAML and uses **2025-01-01 through 2025-03-31**.
+- `committee build project.yaml --from -3d --to now` uses **three days ago through today**.
 - `committee build project.yaml --past-weeks 3 --future-weeks 1` uses **today - 3 weeks** through **today + 1 week**.
 - If YAML omits `end_date`, and no CLI range is supplied, build falls back to **today - 1 week** through **today + 1 week** and logs a warning.
+
+YAML `date_window.start_date` and `date_window.end_date` accept the same flexible expressions, so a project file can use values like `"2025-03-20"`, `"-2w"`, or `"now"`.
 
 Other warning fallbacks to know:
 

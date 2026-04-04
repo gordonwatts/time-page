@@ -9,6 +9,7 @@ from pathlib import Path
 
 import typer
 
+from committee_builder.date_parsing import parse_date_expression
 from committee_builder.pipeline.validate_pipeline import validate_yaml
 
 logger = logging.getLogger(__name__)
@@ -24,16 +25,12 @@ class ParsedRangeOptions:
     future_weeks: int | None
 
 
-def parse_iso_date_option(value: str | None, *, option_name: str) -> date | None:
-    """Parse a single ISO date option."""
-    if value is None:
-        return None
+def parse_date_option(value: str | None, *, option_name: str) -> date | None:
+    """Parse a single CLI date expression."""
     try:
-        return date.fromisoformat(value)
+        return parse_date_expression(value, label=option_name)
     except ValueError as exc:
-        raise typer.BadParameter(
-            f"{option_name} must be in YYYY-MM-DD format."
-        ) from exc
+        raise typer.BadParameter(str(exc)) from exc
 
 
 def parse_cli_range_options(
@@ -45,8 +42,8 @@ def parse_cli_range_options(
 ) -> ParsedRangeOptions:
     """Parse CLI date range options into a typed container."""
     return ParsedRangeOptions(
-        from_date=parse_iso_date_option(from_date, option_name="--from"),
-        to_date=parse_iso_date_option(to_date, option_name="--to"),
+        from_date=parse_date_option(from_date, option_name="--from"),
+        to_date=parse_date_option(to_date, option_name="--to"),
         past_weeks=past_weeks,
         future_weeks=future_weeks,
     )

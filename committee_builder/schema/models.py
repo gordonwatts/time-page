@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import date
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from committee_builder.date_parsing import parse_date_expression
 
 
 class EventType(str, Enum):
@@ -55,6 +57,11 @@ class DateWindow(BaseModel):
 
     start_date: date
     end_date: date | None = None
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def _parse_date_expression(cls, value: object) -> object:
+        return parse_date_expression(value, label="date_window")
 
 
 class CommitteeMetadata(ProjectMetadata):

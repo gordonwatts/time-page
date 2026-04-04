@@ -17,6 +17,7 @@ dependencies = [
   "markdownify>=1.2.0",
   "mdit-py-plugins>=0.4.1",
   "requests>=2.32.0",
+  "dateparser>=1.2.2",
   "webcolors>=24.11.1"
 ]
 
