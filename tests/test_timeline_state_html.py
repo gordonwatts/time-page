@@ -51,7 +51,9 @@ def test_output_includes_timeline_state_persistence_hooks(tmp_path: Path) -> Non
     text = out.read_text(encoding="utf-8")
 
     assert "window.sessionStorage.getItem(storageKey)" in text
+    assert "window.localStorage.getItem(seenStorageKey)" in text
     assert "timelineScrollTop: state.timelineScrollTop" in text
+    assert "state.seenIds[eventId] = new Date().toISOString()" in text
     assert 'window.addEventListener("pagehide"' in text
 
 
@@ -87,3 +89,4 @@ def test_output_persists_state_with_merged_local_and_source_events(
     assert '"Imported Weekly"' in text
     assert "selected.source_name" in text
     assert "selectedId: state.selectedId" in text
+    assert 'class="seen-badge" aria-label="Seen">Seen</span>' in text

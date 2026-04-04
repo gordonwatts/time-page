@@ -12,9 +12,13 @@
   }
 
   const storageKey = `committee-history:${window.location.pathname}:${data.committee?.name || "default"}`;
+  const seenStorageKey = `${storageKey}:seen`;
+  const maxSeenEntries = 500;
+  const validEventIds = new Set((data.events || []).map((event) => event.id).filter((id) => typeof id === "string" && id));
   const state = {
     query: "",
     selectedId: data.events?.[0]?.id ?? null,
+    seenIds: {},
     timelineScrollTop: 0,
   };
   const namedPalette = {
@@ -241,6 +245,34 @@
     } catch {}
   }
 
+  function pruneSeenIds(entries) {
+    const normalized = Object.entries(entries || {})
+      .filter(([id, seenAt]) => validEventIds.has(id) && typeof seenAt === "string" && Number.isFinite(Date.parse(seenAt)))
+      .sort((a, b) => Date.parse(b[1]) - Date.parse(a[1]));
+    return Object.fromEntries(normalized.slice(0, maxSeenEntries));
+  }
+
+  function loadSeenState() {
+    try {
+      const raw = window.localStorage.getItem(seenStorageKey);
+      if (!raw) return;
+      state.seenIds = pruneSeenIds(JSON.parse(raw));
+    } catch {}
+  }
+
+  function persistSeenState() {
+    try {
+      state.seenIds = pruneSeenIds(state.seenIds);
+      window.localStorage.setItem(seenStorageKey, JSON.stringify(state.seenIds));
+    } catch {}
+  }
+
+  function markSeen(eventId) {
+    if (!validEventIds.has(eventId)) return;
+    state.seenIds[eventId] = new Date().toISOString();
+    persistSeenState();
+  }
+
   function persistState() {
     try {
       window.sessionStorage.setItem(
@@ -335,7 +367,7 @@
       <div class="panel-header"><h2>Selected Entry</h2><div class="panel-pills">${renderPill(selectedStyle.label, selectedStyle.color)}${selectedSourcePill}</div></div>
       <article>
         <h3>${esc(selected.title)}</h3>
-        <div class="meta">${esc(fmtDate(selected.date))}${selected.important ? " · major event" : ""}</div>
+        <div class="meta">${esc(fmtDate(selected.date))}${selected.important ? " Â· major event" : ""}</div>
         ${summarySection}
         ${minutesSection}
         <section><h4>Participants</h4><div class="chips">${participants || "<span class='muted-text'>None</span>"}</div></section>
@@ -353,6 +385,7 @@
         const style = getStyle(event.type);
         const tone = buildTone(style.color);
         const isMajor = Boolean(event.important);
+        const isSeen = Boolean(state.seenIds[event.id]);
         const isSelected = selected.id === event.id;
         const cls = isMajor ? "timeline-item major" : "timeline-item minor";
         const sourcePill = event.source_name && event.source_color
@@ -368,7 +401,7 @@
           dividerInserted = true;
         }
         timelineHtml += `
-          <button class="${cls}${isSelected ? " selected" : ""}" data-event-id="${esc(event.id)}" title="${esc(event.title)} · ${esc(fmtDate(event.date))} · ${esc(style.label)}">
+          <button class="${cls}${isSelected ? " selected" : ""}" data-event-id="${esc(event.id)}" title="${esc(event.title)} Â· ${esc(fmtDate(event.date))} Â· ${esc(style.label)}">
             <span class="timeline-rail">
               <span class="dot" ${dotStyleAttr(tone)}></span>
               <span class="connector"></span>
@@ -376,6 +409,7 @@
             <span class="timeline-content">
               <span class="date">${esc(isMajor ? fmtDate(event.date) : fmtCompactDate(event.date))}</span>
               <span class="title">${esc(event.title)}</span>
+              ${isSeen ? '<span class="seen-badge" aria-label="Seen">Seen</span>' : ""}
               <span class="timeline-pills">${renderPill(style.label, style.color, "small")}${sourcePill}</span>
               ${isMajor ? `<span class="short">${esc(event.short_label || event.title)}</span>` : ""}
             </span>
@@ -414,7 +448,9 @@
     }, { passive: true });
     timeline.querySelectorAll("[data-event-id]").forEach((el) => {
       el.addEventListener("click", () => {
-        state.selectedId = el.getAttribute("data-event-id");
+        const eventId = el.getAttribute("data-event-id");
+        state.selectedId = eventId;
+        markSeen(eventId);
         state.timelineScrollTop = timeline.scrollTop;
         persistState();
         render();
@@ -424,6 +460,7 @@
   }
 
   loadState();
+  loadSeenState();
   render();
 
   window.addEventListener("pagehide", () => {
