@@ -31,8 +31,8 @@ def build_command(
     ),
     overwrite: bool = typer.Option(
         False,
-        "--overwrite",
-        help="Allow overwriting an existing output file.",
+        "--force",
+        help="Overwrite an existing output file.",
     ),
     from_date: str | None = typer.Option(
         None, "--from", help="Override start date (ISO, now, -3d, +2w, etc.)."

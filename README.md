@@ -30,7 +30,7 @@ Prerequisite: install `uv` on the machine ([docs](https://docs.astral.sh/uv/)).
 
 ```bash
 uvx --from . committee --help
-uvx --from . committee build examples/committee.example.yaml --overwrite
+uvx --from . committee build examples/committee.example.yaml --force
 ```
 
 ## Quickstart
@@ -56,7 +56,7 @@ committee validate data/committee.project.yaml
 4. Build standalone page (this step also fetches Indico meetings for the effective date window):
 
 ```bash
-committee build data/committee.project.yaml --overwrite
+committee build data/committee.project.yaml --force
 ```
 
 By default this writes:
@@ -67,7 +67,7 @@ data/committee.project.html
 
 ## CLI commands
 
-- `committee build PROJECT_YAML [--output PATH] [--overwrite] [--from DATE_EXPR --to DATE_EXPR] [--past-weeks N --future-weeks M]`
+- `committee build PROJECT_YAML [--output PATH] [--force] [--from DATE_EXPR --to DATE_EXPR] [--past-weeks N --future-weeks M]`
 - `committee validate PROJECT_YAML`
 - `committee init PATH [--force] [--title TEXT] [--from DATE_EXPR] [--to DATE_EXPR]`
 - `committee add event PROJECT_YAML ...`
@@ -96,8 +96,8 @@ committee indico add data/committee.project.yaml https://indico.example.org/cate
 3. Build. During build, configured sources are fetched and merged into the in-memory history before rendering:
 
 ```bash
-committee build data/committee.project.yaml --from 2024-01-01 --to 2024-12-31 --overwrite
-committee build data/committee.project.yaml --from -3w --to now --overwrite
+committee build data/committee.project.yaml --from 2024-01-01 --to 2024-12-31 --force
+committee build data/committee.project.yaml --from -3w --to now --force
 ```
 
 Use `committee build` with `--from/--to` (or `--past-weeks/--future-weeks`) whenever you need date overrides for Indico ingestion. `--from` and `--to` accept ISO dates, natural-language expressions that `dateparser` understands, and short relative forms such as `now`, `-3d`, `+2w`, `-1m`, and `-1y`.
@@ -109,7 +109,7 @@ Effective build date window precedence is:
 1. CLI absolute range `--from` + `--to`
 2. CLI relative range `--past-weeks` + `--future-weeks`
 3. `date_window` in project YAML
-4. Default fallback: today ± 1 week, with a warning log
+4. Default fallback: today Â± 1 week, with a warning log
 
 Explicit examples:
 

@@ -31,7 +31,7 @@ $buildArgs = @(
     $configPath,
     '--from', $fromDateIso,
     '--to', $toDateIso,
-    '--overwrite'
+    '--force'
 )
 
 $buildCmd = "uvx $($buildArgs -join ' ')"
