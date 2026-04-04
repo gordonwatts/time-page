@@ -8,6 +8,7 @@ from typing import Any
 
 import typer
 
+from committee_builder.date_parsing import parse_date_expression
 from committee_builder.io.paths import normalize_yaml_path
 from committee_builder.io.yaml_io import write_yaml
 
@@ -60,12 +61,12 @@ def init_command(
     from_date: str = typer.Option(
         "2023-01-01",
         "--from",
-        help="Default date window start (YYYY-MM-DD).",
+        help="Default date window start expression (ISO, now, -3d, +2w, etc.).",
     ),
     to_date: str | None = typer.Option(
         "2024-12-31",
         "--to",
-        help="Default date window end (YYYY-MM-DD).",
+        help="Default date window end expression (ISO, now, +2w, -3d, etc.).",
     ),
 ) -> None:
     """Create a blank YAML source file."""
@@ -73,6 +74,11 @@ def init_command(
     if path.exists() and not force:
         logger.error("File already exists: %s (use --force to overwrite)", path)
         raise typer.Exit(code=1)
+    try:
+        parse_date_expression(from_date, label="--from")
+        parse_date_expression(to_date, label="--to")
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
     write_yaml(
         path, _build_starter_doc(title=title, from_date=from_date, to_date=to_date)

@@ -1,5 +1,6 @@
 """Build command tests."""
 
+from datetime import datetime
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -68,6 +69,35 @@ def test_build_cli_absolute_dates_override_project_window() -> None:
                 "2023-02-01",
                 "--to",
                 "2023-02-28",
+            ],
+        )
+        assert result.exit_code == 0
+
+        text = Path("committee.html").read_text(encoding="utf-8")
+        assert "January Kickoff" not in text
+        assert "February Planning" in text
+
+
+def test_build_accepts_flexible_date_expressions(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "committee_builder.date_parsing.current_datetime",
+        lambda: datetime(2023, 2, 10, 12, 0, 0),
+    )
+    with runner.isolated_filesystem():
+        src = Path("committee.yaml")
+        src.write_text(SAMPLE, encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            [
+                "build",
+                str(src),
+                "--from",
+                "-1d",
+                "--to",
+                "now",
             ],
         )
         assert result.exit_code == 0

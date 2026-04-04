@@ -51,5 +51,6 @@ These warnings are visible by default and are easier to inspect with `committee 
 ## Command implications
 
 - `committee build <project.yaml>` is the primary ingestion/build command.
-- Use `committee build --from YYYY-MM-DD --to YYYY-MM-DD` (or relative week options) to override ingest date windows.
+- Use `committee build --from DATE_EXPR --to DATE_EXPR` (or relative week options) to override ingest date windows.
+- `DATE_EXPR` can be an ISO date, natural language accepted by `dateparser`, or shorthand such as `now`, `-3d`, `+2w`, `-1m`, or `-1y`.
 - `committee indico add|list|remove|api-key` manage source metadata and credentials.
