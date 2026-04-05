@@ -137,3 +137,18 @@ def test_build_adds_yaml_suffix_when_omitted() -> None:
 
         assert result.exit_code == 0
         assert Path("committee.html").exists()
+
+
+def test_build_force_overwrites_existing_output() -> None:
+    with runner.isolated_filesystem():
+        src = Path("committee.yaml")
+        src.write_text(SAMPLE, encoding="utf-8")
+        out = Path("committee.html")
+        out.write_text("old output", encoding="utf-8")
+
+        result = runner.invoke(app, ["build", str(src), "--force"])
+
+        assert result.exit_code == 0
+        text = out.read_text(encoding="utf-8")
+        assert "committee-data" in text
+        assert "old output" not in text

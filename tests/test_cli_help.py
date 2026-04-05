@@ -22,7 +22,7 @@ def test_build_help_has_range_and_output_options() -> None:
     result = runner.invoke(app, ["build", "--help"])
     assert result.exit_code == 0
     assert "--output" in result.stdout
-    assert "--overwrite" in result.stdout
+    assert "--force" in result.stdout
     assert "--from" in result.stdout
     assert "--to" in result.stdout
     assert "--past-weeks" in result.stdout

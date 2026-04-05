@@ -287,7 +287,9 @@ def build_html(
 
     target = output_path if output_path is not None else default_output_html(input_yaml)
     if target.exists() and not overwrite:
-        raise FileExistsError(f"Output file exists: {target} (use --overwrite)")
+        raise FileExistsError(
+            f"Output file exists: {target} (set overwrite=True or use --force)"
+        )
 
     css, js, env = _load_template_assets()
     template = env.get_template("template.html.j2")
