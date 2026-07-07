@@ -8,7 +8,7 @@ import typer
 
 from committee_builder.commands.add import (
     add_event_command,
-    add_indico_category_command,
+    add_indico_source_command,
     add_minutes_command,
 )
 from committee_builder.commands.build import build_command
@@ -68,9 +68,9 @@ add_app = typer.Typer(help="Add events, Indico categories, and minutes content."
 add_app.command("event", help="Add a local event entry to project YAML.")(
     add_event_command
 )
-add_app.command("indico", help="Add an Indico category or event source to project config.")(
-    add_indico_category_command
-)
+add_app.command(
+    "indico", help="Add an Indico category or event source to project config."
+)(add_indico_source_command)
 add_app.command(
     "minutes",
     help="Import minutes text file content into markdown fields in YAML.",
@@ -78,10 +78,10 @@ add_app.command(
 app.add_typer(add_app, name="add")
 
 indico_app = typer.Typer(help="Manage Indico sources and local API credentials.")
-indico_app.command("add", help="Add an Indico category or event to the project config.")(
-    add_source_command
-)
-indico_app.command("list", help="List configured Indico categories.")(
+indico_app.command(
+    "add", help="Add an Indico category or event to the project config."
+)(add_source_command)
+indico_app.command("list", help="List configured Indico categories and pinned events.")(
     list_sources_command
 )
 indico_app.command(
@@ -94,9 +94,9 @@ indico_app.command(
         "site base URL, for example https://indico.cern.ch for CERN."
     ),
 )(api_key_command)
-indico_app.command("remove", help="Remove an Indico category from the config.")(
-    remove_source_command
-)
+indico_app.command(
+    "remove", help="Remove an Indico category or event from the config."
+)(remove_source_command)
 app.add_typer(indico_app, name="indico")
 
 

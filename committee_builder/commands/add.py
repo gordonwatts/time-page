@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 def add_event_command(
     project_yaml: Path = typer.Argument(
-        ..., dir_okay=False, help="Project YAML path or project name (adds .yaml if omitted)."
+        ...,
+        dir_okay=False,
+        help="Project YAML path or project name (adds .yaml if omitted).",
     ),
     title: str = typer.Option(..., "--title", help="Event title."),
     date: str = typer.Option(..., "--date", help="Event date in YYYY-MM-DD."),
@@ -55,7 +57,7 @@ def add_event_command(
     logger.info("Added event '%s' to %s", new_event_id, project_yaml)
 
 
-def add_indico_category_command(
+def add_indico_source_command(
     project_config: Path = typer.Argument(
         ..., help="Project config path or project name (adds .yaml if omitted)."
     ),
@@ -69,7 +71,7 @@ def add_indico_category_command(
     title: str | None = typer.Option(
         None,
         "--title",
-        help="Optional source title. Defaults to fetched category title.",
+        help="Optional source title. Defaults to fetched category/event title.",
     ),
 ) -> None:
     """Add an Indico category or event source to project configuration."""

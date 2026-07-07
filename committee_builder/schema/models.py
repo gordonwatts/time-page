@@ -151,7 +151,7 @@ ProjectFile = CommitteeHistory
 
 
 class IndicoSource(BaseModel):
-    """Configured Indico category source."""
+    """Configured Indico category or event source."""
 
     model_config = ConfigDict(extra="ignore")
 

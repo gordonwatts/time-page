@@ -1,0 +1,633 @@
+schema_version: '1.0'
+metadata:
+  name: ATLAS AI Study Group
+date_window:
+  start_date: '2026-02-15'
+  end_date: '2026-08-01'
+event_type_styles: {}
+events:
+- id: evt-001
+  type: external
+  title: Committee Mandate
+  date: '2026-02-19'
+  important: false
+  summary_md: 'The ATLAS Artificial Intelligence and Machine Learning (AI/ML) Study
+    Group is established to assess the experiment’s readiness to integrate AI/ML activities
+    more broadly, covering online, offline and other non-technical applications. The
+    aim is to evaluate whether the current ATLAS structures are sufficient for the
+    experiment to keep pace with AI/ML advancements, reduce duplication of effort,
+    promote best practices and coherence, and accelerate the efficient adoption of
+    AI/ML techniques throughout the collaboration.
+
+
+
+
+    If the study group concludes that a new organisational structure should be established
+    within ATLAS, it is important to clarify its scope. Such a structure would not
+    be responsible for algorithmic developments dedicated to specific applications.
+    Algorithmic developments within Computing and Software, within the Physics and
+    CP groups, as well as in the Trigger and Data Preparation areas, will remain under
+    the responsibility of those groups. Instead, the study group — and any new structure
+    that may be created — would focus on \*\*strategy, software, and the development
+    of common tools and infrastructure\*\*.
+
+
+
+
+    \[Full Mandate](https://docs.google.com/document/d/1JylfBTBrv0sLo0ry508WflUvnSNDEj589w2IPqck-Ps)
+
+
+
+
+    '
+  participants: []
+  tags: []
+  documents: []
+  contributions: []
+- id: evt-002
+  type: external
+  title: Final Report
+  date: '2026-07-15'
+  important: false
+  summary_md: Added from committee add event.
+  participants: []
+  tags: []
+  documents: []
+  contributions: []
+- id: evt-003
+  type: meeting
+  title: Conveener Meeting
+  date: '2026-03-23'
+  important: false
+  summary_md: '
+
+    # Quick recap
+
+
+    Gordon and Michael met to work on a document outlining organizational changes
+    and recommendations for Atlas''s AI integration efforts across different focus
+    areas. They discussed and refined the structure of their document, distinguishing
+    between "organizational changes" (structural modifications to Atlas groups) and
+    "implement" sections (specific recommendations for ML practices). They reviewed
+    three main areas: event generation and simulation, trigger and real-time systems,
+    and monitor data analysis. The conversation covered topics including open data
+    portals, simulation validation processes, ML framework standardization, and the
+    need for better integration of ML tools across different groups. They agreed to
+    continue their work the following day to complete the document, which needs to
+    be finished before the committee review.
+
+
+    ## Next steps
+
+
+    - Michael: Assess the current process for making data/simulation datasets publicly
+    available (including the use of JIRA tickets and the certification process), and
+    suggest improvements for efficiency.
+
+    - Gordon and Michael: Continue reviewing and organizing the document, aiming to
+    complete the remaining focus areas in the next meeting.
+
+    - Gordon: Send a meeting invite for the next session to continue document review
+    and completion.
+
+    - Michael: Add/adjust text in the document to address the need to accelerate development
+    and validation of new ML-based simulation, including validation standards and
+    workflows.
+
+    - Gordon and Michael: Reorganize and clarify the document structure, including
+    updating section titles (e.g., from "changes in practices" to "organizational
+    changes to current Atlas") and ensuring cross-cutting concerns and infrastructure
+    needs are appropriately referenced.
+
+    - Gordon and Michael: For the trigger and real-time systems section, define and
+    clarify requirements for a registry of ML projects, tooling, training infrastructure,
+    and workflows, and address integration with event filter technology and group
+    structure changes as needed.
+
+    - Gordon and Michael: For operations and detector control, define validation standards
+    and verification plans for ML/agent-based systems, and consider how shift structures
+    may need to change with the introduction of agents.
+
+    - Gordon and Michael: Meet again tomorrow at 5pm Michael''s time to complete the
+    document review and prepare it for broader group input.
+
+
+    ## Summary
+
+
+    ### Atlas Mandate Implementation Discussion
+
+
+    Michael and Gordon discussed their work on implementing changes related to Atlas''s
+    mandate, focusing on how to organize the system to leverage AI effectively. Michael
+    expressed confusion about the distinction between implementing changes and making
+    general adjustments, while Gordon suggested clarifying the difference between
+    specific actions Atlas should take and broader organizational improvements. They
+    also briefly touched on the process of selecting proposals for Phase 1 LOIs, noting
+    the challenges involved due to limited submission numbers and internal dynamics
+    at universities like Berkeley and Slack.
+
+
+    ### Document Structure Reorganization Discussion
+
+
+    Gordon and Michael discussed reorganizing the structure of their document, focusing
+    on three main sections: cross-cutting concerns (covering infrastructure needs),
+    organizational changes (addressing areas where improvements can be made), and
+    implementation (covering specific recommendations). They agreed that infrastructure
+    concerns should be addressed in the cross-cutting concerns section rather than
+    repeating them in multiple focus areas. The discussion concluded with them deciding
+    to leave the current document structure unchanged for now while they continue
+    to refine the terminology and organization in their heads.
+
+
+    ### Open Data Portal Assessment
+
+
+    Gordon and Michael discussed the current state of open datasets and the open data
+    portal, considering whether it meets their needs. They explored the possibility
+    of creating a dedicated group focused on scientific datasets and workflows for
+    generating open datasets. The conversation also touched on the potential for easier
+    access to open data, particularly in light of external efforts like Genesis and
+    the Treasure project. They concluded by assessing the functionality of the current
+    open data portal.
+
+
+    ### Atlas Simulation Certification Process Review
+
+
+    Gordon and Michael discussed challenges with the current simulation and data publishing
+    certification process in Atlas, particularly regarding the validation of ML-based
+    methods. They identified the need to assess the current process and make it more
+    streamlined, potentially reducing it to a simple form or email submission. The
+    conversation touched on the complexity of creating a general fast Monte Carlo
+    simulation versus one tailored for specific analyses, and they agreed to leave
+    the discussion general for now. They also briefly considered future possibilities
+    for on-demand ultra-fast simulations but decided to focus on immediate improvements
+    to the current process.
+
+
+    ### Atlas Integration and Data Standardization
+
+
+    Gordon and Michael discussed organizational changes related to Atlas integration
+    and simulation efforts, focusing on standardizing training workflows and preventing
+    redundant work across CP groups. They identified infrastructure challenges, particularly
+    around data compatibility issues between different frameworks used for tagging
+    tau particles and jets. The conversation highlighted the need for better cross-group
+    data production and common frameworks, with Michael noting specific challenges
+    around tau and B-tagger training due to incompatible jet algorithms and data sets.
+
+
+    ### Organizational Changes Document Updates
+
+
+    Gordon and Michael discussed updates to a document, focusing on refining language
+    around organizational changes and practices. They agreed to use "organizational
+    changes to current Atlas practice" instead of "changes in practices" and discussed
+    the role of SALT as a potential starting point for expansion. They also touched
+    on the appropriateness of using transformer-based networks and the need for minimal
+    intervention in workflows. The conversation concluded with plans to continue reviewing
+    the document and making necessary adjustments.
+
+
+    ### ML Systems Integration Progress Review
+
+
+    Gordon and Michael discussed progress on trigger and real-time systems, focusing
+    on areas such as creating a registry of ML projects, developing tooling and training
+    infrastructure, and establishing a requirements framework to streamline the process
+    of integrating ML algorithms into trigger systems. They highlighted tensions around
+    integration between Atlas and HLS for ML and noted the need for better coordination
+    between ML R&D and broader ML efforts. The discussion also touched on organizational
+    changes within the trigger group, validation standards for agent systems, and
+    the need to define ownership and governance structures. They agreed to continue
+    the discussion the following day to finalize their review and complete the task
+    for the committee.
+
+    '
+  participants: []
+  tags: []
+  documents: []
+  contributions: []
+- id: evt-004
+  type: meeting
+  title: Conveener Meeting
+  date: '2026-03-18'
+  important: false
+  summary_md: '# Quick recap
+
+
+    Gordon and Michael discussed their recent attendance at a music festival on a
+    ranch organized by Farm Aid, where Gordon was volunteering with CERN''s outreach
+    efforts. They then focused on planning future Atlas recommendations regarding
+    AI and machine learning integration, agreeing to structure their work around identifying
+    specific needs rather than getting distracted by technical details or disruption
+    concerns. They decided to focus on practical needs like scaling up models, developing
+    computing infrastructure, and potentially restructuring how Atlas handles corrections
+    and calibrations, while leaving aside discussions about foundation models and
+    LLMs for now. The conversation concluded with plans to reconvene in an hour to
+    develop discussion topic areas for future meetings.
+
+
+    ## Next steps
+
+
+    * Gordon \& Michael: Meet again in one hour to continue discussion on forming
+    discussion topic areas for the group.
+
+    * Gordon \& Michael: Come up with a few discussion topic areas, discuss, and ask
+    group members to think about/add to them.
+
+    * Gordon \& Michael: Assign "homework" to group members to consider the proposed
+    discussion topics and provide feedback or additional topics.
+
+
+    ## Summary
+
+
+    ### CERN Music Festival Fundraiser
+
+
+    Gordon discussed a music festival on a former movie set that raises funds for
+    farms, including Farm Aid. He explained that Connie Potter, who previously worked
+    at CERN and now focuses on music outreach, helped establish a pavilion called
+    the Quantum Corral for outreach and demonstrations for about 5,000 people. Michael
+    shared a story about Christian Ohm offering free CERN tours through a local radio
+    station competition, including one for someone in Taylor Swift''s production team.
+
+
+    ### VIP Event Experience Discussion
+
+
+    Gordon shared his experience attending a VIP dinner and music festival in Texas,
+    describing the event''s atmosphere, costs, and food. He explained that he paid
+    for the trip himself and was invited to volunteer after being reliable in previous
+    roles. Michael expressed interest in potentially getting involved in similar events
+    and asked Gordon for advice on how to do so.
+
+
+    ### ML Discussion Management Strategy
+
+
+    Gordon and Michael discussed the challenges of managing diverse ideas during recent
+    discussions about ML topics. They agreed that a focused approach would be needed
+    to avoid expanding discussions indefinitely, with Gordon suggesting the implementation
+    of a "corralling mechanism" to funnel conversations toward specific conclusions.
+    Michael noted the presence of different groups, including ML tool builders and
+    occasional ML users, and suggested separating discussions into categories, potentially
+    including foundation models and LLMs. Michael also proposed forming a task force
+    to conduct the first Agentic Atlas analysis.
+
+
+    ### Research Project and Task Focus
+
+
+    Gordon and Michael discussed ongoing research efforts related to a project, with
+    Gordon mentioning that several groups, including ones at LBL and UChicago, are
+    already working on it. They criticized a recent paper by Hai Chan, describing
+    it as typical of early work in the field. The conversation shifted to concerns
+    about the task force getting distracted from its main objectives, with Gordon
+    acknowledging that while their discussion about technical aspects was important,
+    they should have focused more on making specific recommendations.
+
+
+    ### Atlas LLM Capabilities Gap Discussion
+
+
+    Michael and Gordon discussed working backwards from the question of whether Atlas
+    is set up to take advantage of LLM capabilities, with Michael confirming that
+    Atlas is not currently set up for LLM-based code writing or analysis. They identified
+    this as an obvious gap that needs addressing through recommendations. The discussion
+    touched on emerging concerns about disruption, with Gordon comparing the situation
+    to tugboats trying to change direction of a supertanker, though specific details
+    about the disruption concerns were not fully elaborated in the transcript.
+
+
+    ### Technological Disruption Prediction Challenges
+
+
+    Gordon and Michael discussed the challenges of predicting technological disruptions
+    over the next 3-4 years, particularly regarding LLMs and their impact on physics
+    research. They agreed to focus on ensuring the initial physics results from HLHC
+    come out on time and accurately, rather than speculating about future technological
+    changes. The conversation ended with Michael mentioning concerns about potential
+    overhauls to the ML forum, which he had discussed with Daniel Murnane.
+
+
+    ### System Upgrade and Restructuring Discussion
+
+
+    Michael and Gordon discussed the need to upgrade and restructure certain systems,
+    particularly focusing on CP groups and Atlas''s approach to corrections. They
+    agreed to start by identifying key needs, such as computing infrastructure, hardware,
+    and training platforms, especially in light of scaling up models. Gordon highlighted
+    the potential for changing the publication structure to enable more AI-related
+    work and suggested reevaluating how CP groups operate. They decided to meet again
+    in an hour to further discuss and outline specific discussion topics for the group,
+    with plans to assign homework to participants to avoid overwhelming themselves
+    with the scope of work.
+
+
+
+
+    \# Part 2
+
+
+
+
+    # Quick recap
+
+
+    Michael and Gordon discussed the development of a report focused on integrating
+    AI into the Atlas experiment, emphasizing the need to balance foundational infrastructure
+    with transformative changes. They explored ideas for improving reconstruction,
+    trigger, and simulation processes, while considering the sociological aspects
+    of implementing AI within existing structures. Gordon suggested creating a menu
+    of options for different levels of AI integration, ranging from incremental improvements
+    to more significant overhauls, to allow the Atlas community to choose paths that
+    align with their capabilities and goals. They agreed to draft initial ideas for
+    each focus area and supporting infrastructure, with Michael and Gordon planning
+    to review and refine these concepts before presenting them to the broader committee.
+
+
+    ## Next steps
+
+
+    * Gordon: Create a Google Doc with focus areas and introductory paragraph for
+    organizing report ideas, including infrastructure/supporting services
+
+    * Michael and Gordon: Review meeting summaries and fill out Google Doc with high-level
+    goals and infrastructure needs for each focus area by the weekend
+
+    * Michael and Gordon: Meet Monday at 7:30-8:30 PM Gordon''s time (3:30-4:30 CERN
+    time) to discuss their contributions
+
+    * Michael: Send out Doodle poll for next meeting time during the week of the 30th,
+    between 4-6 PM CERN time
+
+    * Michael: Notify Lucas about rescheduling PhD interviews
+
+    * Michael and Gordon: Present their Google Doc to the committee for review and
+    input
+
+
+    ## Summary
+
+
+    ### Genesis Project RFP Discussion
+
+
+    Michael and Gordon discussed the Genesis project and a recent RFP with a $500,000
+    budget for a 6-month period. They expressed concerns about the timeline and feasibility
+    of the grant, noting that it would require existing team members to redirect their
+    focus, potentially impacting other projects. Michael shared that Genesis has been
+    operating as an ongoing sprint due to previous urgent funding needs, and while
+    there is now real money involved, there are questions about where the $300 million
+    total budget is coming from across different physics programs.
+
+
+    ### Physics Program Merger Discussion
+
+
+    Michael and Gordon discussed the recent merger of nuclear and high energy physics
+    programs, which Gordon noted could potentially allow for joint grant applications.
+    They explored concerns about the Genesis mission''s approach, with Michael suggesting
+    it might be building itself to fail by pulling funding from groups not well-suited
+    for AI development. The conversation highlighted tensions between externally imposed
+    funding constraints and scientific expertise, with both agreeing that current
+    funding decisions might not align with optimal scientific progress.
+
+
+    ### Community vs Top-Down Decision Processes
+
+
+    Gordon and Michael discussed the balance between community-driven consensus processes
+    like Snowmass and top-down decision-making by organizations like DOE and NSF.
+    While Gordon defended the community consensus approach, Michael expressed concerns
+    about its effectiveness for their larger group size and suggested considering
+    alternative methods. The conversation ended with Gordon agreeing to a more top-down
+    approach for their AIML study group, though he noted the importance of being able
+    to propose ideas even when facing pushback.
+
+
+    ### Report Structure and Content Planning
+
+
+    Gordon and Michael discussed the structure and content of a report they are working
+    on. They focused on balancing technical needs with sociological aspects, emphasizing
+    the importance of creating an environment where innovative work can thrive. Gordon
+    suggested organizing the report to present different levels of disruption, ranging
+    from minor improvements to more significant changes, with associated cost and
+    benefit analyses for each option.
+
+
+    ### Report Structure and Recommendations Approach
+
+
+    Gordon and Michael discussed the approach for their report, focusing on presenting
+    a menu of options rather than making definitive decisions themselves. They agreed
+    to structure their recommendations by considering both top-level (physics-focused)
+    and bottom-level (infrastructure) approaches, with the goal of ensuring that lower-level
+    recommendations could support higher-level initiatives. Michael suggested working
+    to gather impactful ML ideas across different groups alongside the necessary infrastructure
+    requirements, noting that including these options in their report could give them
+    momentum for future adoption.
+
+
+    ### Task Force Project Scope Discussion
+
+
+    Michael and Gordon discussed the interpretation of their task force''s charge
+    regarding project overlap with existing groups. Gordon clarified that he didn''t
+    interpret the restriction as preventing recommendations that might affect other
+    groups'' projects, but rather as limiting the scope of what the task force would
+    directly take on. They explored different approaches to integrating AI into Atlas,
+    with Gordon suggesting a spectrum from minor adjustments to major reorganization,
+    and Michael proposing the example of providing scaling infrastructure that would
+    benefit all CP groups.
+
+
+    ### Project Expansion in Trigger Systems
+
+
+    Michael and Gordon discussed potential areas beyond reconstruction and data analysis
+    in their project, including operations and trigger systems. They explored opportunities
+    in high-level trigger (HLT) and L1 systems, with Gordon suggesting these might
+    require different approaches than reconstruction. Michael proposed developing
+    a classifier across data analyses and highlighted the importance of ML operations,
+    including pipeline optimization and reducing the need for individual ML engineers.
+
+
+    ### Balancing Ambitious Ideas with Realism
+
+
+    Michael and Gordon discussed the need to balance ambitious ideas with practical,
+    achievable goals in their report. They agreed to focus on realistic, near-term
+    possibilities rather than "pie-in-the-sky" concepts like complete end-to-end differential
+    analysis pipelines. Gordon suggested organizing the report by focus areas, starting
+    with infrastructure like MLOps, and developing bullet point ideas for each area.
+
+
+    ### AI Infrastructure Report Planning
+
+
+    Gordon and Michael discussed creating a report outline focusing on AI infrastructure
+    and supporting services across different focus areas. They agreed to develop a
+    Google Doc outlining high-level goals and necessary infrastructure for each area,
+    including considerations for MLOps teams and affordable implementation strategies.
+    They scheduled a follow-up meeting for Monday at 7:30 PM Gordon''s time (3:30-4:30
+    PM CERN time) to review their progress, and Michael will create a Doodle poll
+    for the week of the 30th to schedule future meetings.
+
+
+
+
+    '
+  participants: []
+  tags: []
+  documents: []
+  contributions: []
+- id: evt-005
+  type: meeting
+  title: Conveener Meeting
+  date: '2026-04-09'
+  important: false
+  summary_md: "## **Quick recap**\n\nMichael and Gordon met to assign point people\
+    \ for various working groups within their project. They reviewed a spreadsheet\
+    \ of different categories including Advent Generation Simulation, Reconstruction,\
+    \ Computing Operations, Data Quality, Trigger and Real-Time Systems, Community\
+    \ and Training, Exploration and Community Larger than Atlas, and Cross-Cutting\
+    \ Concerns. They discussed and assigned leaders to each group, considering factors\
+    \ like expertise, responsibility, and bandwidth of team members. Key decisions\
+    \ included putting Katerina in charge of Advent Generation Simulation, James in\
+    \ charge of Trigger and Real-Time Systems, and Daniel in charge of Reconstruction.\
+    \ They also identified the need to extract cross-cutting concerns, open data,\
+    \ and potentially agentic systems/LLM-based code writing and analysis into separate\
+    \ focus areas. The conversation ended early due to Gordon's scheduling conflict\
+    \ with another organizational meeting.\n\nMichael and Gordon discussed organizing\
+    \ their AI-focused groups and planning for upcoming reports. They decided to restructure\
+    \ the document with key focus areas including open data initiatives, specific\
+    \ points of attention, organizational changes, and cross-cutting concerns. The\
+    \ pair agreed to simplify the guidelines and add benefits/outcomes sections for\
+    \ each group. They determined that group leaders would conduct informal discussions\
+    \ with experts and make notes about potential invitees for future meetings. Michael\
+    \ and Gordon planned to schedule the next meeting for April 20th, aiming to have\
+    \ 4 groups present 15-minute reports. They acknowledged the need to finalize group\
+    \ leadership positions and circulate the updated document for feedback before\
+    \ moving forward with the report deadline in mid-June.\n\n## **Next steps**\n\n\
+    * Michael: Draft and send an email to group members outlining group changes, leadership\
+    \ assignments, open data group sign-ups, expectations for 15-minute reports, and\
+    \ next steps; include concise information about who is in what group and highlight\
+    \ the relevant document for reference.  \n* Gordon: Update the spreadsheet/document\
+    \ to assign people to the open data group and other relevant groups, and prepare\
+    \ the document with bolded leadership positions for review.  \n* Michael and Gordon:\
+    \ Sit down (targeting during Chicago trip on the 23rd) to draft an initial version\
+    \ of the final report structure before soliciting broader group input.  \n* All\
+    \ group leaders: Review the circulated document and leadership assignments, and\
+    \ provide feedback or indicate acceptance of assigned roles.  \n* Select 4 groups:\
+    \ Prepare 10-minute presentations (with 10-minute discussion) for the next meeting\
+    \ (targeted for the 20th), focusing on the most important pieces for the report.\
+    \  \n* Michael and Gordon: Finalize and communicate the expected format and content\
+    \ for the final report to the group after their initial draft.  \n* All group\
+    \ members: Begin informal discussions with relevant experts and note any recommendations\
+    \ for broader meetings/workshops, as well as potential invitees for future group\
+    \ meetings.\n\nMichael: Download and save the meeting transcript for reference\
+    \ and potential inclusion of key points in future communications.\n\n\\- Gordon\
+    \ and Michael: Go through the spreadsheet in real time to ensure all participants\
+    \ are correctly assigned to relevant groups and update the spreadsheet accordingly\n\
+    \n\\- Michael: Add a new column in the spreadsheet for Michael\n\n\\- Michael:\
+    \ Ask Katerina to join at least one additional group\n\n\\- Michael and Gordon:\
+    \ Add Bertrand to the appropriate group(s) in the spreadsheet\n\n\\- Michael and\
+    \ Gordon: Create two new categories \\- \"Open Data\" and \"Agentic Systems/LLMs\
+    \ and Automation\" (or similar), and either send an email about this or otherwise\
+    \ implement\n\n\\- Michael: Add Bertrand as leader of Trigger and Real-Time Systems,\
+    \ removing Giannis from this role\n\n\\- Michael: Schedule follow-up meeting at\
+    \ 6PM Michael's time/9AM Gordon's time for 30 minutes\n\n\\- Gordon: Attend follow-up\
+    \ meeting at 9AM his time if possible\n\n\\- Michael: Watch Mattermost for updates\n\
+    \n## **Team Assignment Spreadsheet Updates**\n\nMichael and Gordon discussed updating\
+    \ a spreadsheet to accurately reflect team member assignments across various projects.\
+    \ They identified that several team members, including Dan and Katerina, needed\
+    \ to be added to additional projects. The conversation focused on ensuring the\
+    \ spreadsheet properly represented current team involvement rather than relying\
+    \ on an initial AI-generated version. They agreed to review and update the assignments\
+    \ in real-time rather than making changes separately.\n\n## **Team Project Leadership\
+    \ Assignments**\n\nMichael and Gordon discussed team assignments for various projects,\
+    \ including Advent Generation Simulation, reconstruction, real-time systems, data\
+    \ quality, and operations. They debated leadership choices, considering factors\
+    \ like responsibility, bandwidth, and potential pushback from certain team members\
+    \ like Ed. They agreed on several leaders for different projects, including Katarina\
+    \ for Advent Generation Simulation, James for reconstruction, and Giannis for\
+    \ real-time systems. The conversation touched on the challenge of balancing constructive\
+    \ criticism with the need for consensus, particularly regarding innovation and\
+    \ change within Atlas.\n\n## **Leadership Team Assignments Discussion**\n\nGordon\
+    \ and Michael discussed leadership assignments for various teams and projects.\
+    \ They decided on specific people to lead different areas including operations,\
+    \ training/community, exploration, sustainability, and cross-cutting concerns.\
+    \ They agreed that James would lead cross-cutting concerns, Daniel would lead\
+    \ reconstruction, and Bertrand would lead triggers. The discussion was cut short\
+    \ due to another meeting, with plans to continue the conversation later.\n\n##\
+    \ **Code Writing and Task Prioritization**\n\nMichael and Gordon discussed topics\
+    \ related to code writing and agentic analysis, acknowledging limited information\
+    \ available on these subjects. They decided to focus on defining tasks people\
+    \ should prioritize first and revisit the discussion on abstraction if time permits.\
+    \ They agreed to include \"open data\" in the simulation section and volunteer\
+    \ interested individuals to handle this task as homework. Gordon and Michael also\
+    \ discussed organizing the information in their document, with Gordon planning\
+    \ to make necessary adjustments to the layout.\n\n## **Documentation Guidelines\
+    \ Planning Meeting**\n\nGordon and Michael discussed organizing documentation,\
+    \ with Gordon planning to add guidelines at the bottom of the document. They agreed\
+    \ to start with a key that was previously developed, which includes specific points\
+    \ of attention, organizational changes, and cross-cutting concerns. Gordon mentioned\
+    \ the need to include benefits to Atlas in the guidelines.\n\n## **AI Sales Pitch\
+    \ Strategy Planning**\n\nGordon requested a sales pitch for each AI innovation\
+    \ to highlight benefits and outcomes in their report. Michael suggested simplifying\
+    \ the content and removing non-specific bullet points. They discussed focusing\
+    \ on current practices that could be improved and potential tools to add, while\
+    \ considering cost-cutting concerns. The team agreed to involve experts through\
+    \ small focus discussions rather than organizing large meetings, with the possibility\
+    \ of recommending a larger workshop if needed.\n\n## **Computing Experts Discussion\
+    \ Planning**\n\nGordon and Michael discussed organizing informal discussions with\
+    \ computing experts and agreed to remove negative language from their plans. They\
+    \ decided to schedule additional meetings more frequently than every three weeks\
+    \ due to time constraints, with a first report due in mid-June. The conversation\
+    \ ended with Michael suggesting they need to better define their goals and reduce\
+    \ the amount of detail in their reporting process.\n\n## **Leadership Report Planning\
+    \ Meeting**\n\nMichael and Gordon agreed to write a report outlining their vision\
+    \ before consulting with others, though they acknowledged time constraints due\
+    \ to upcoming commitments. They decided to meet on the 20th to discuss the report\
+    \ and gather feedback, after first informing the group about the new leadership\
+    \ structure and giving them time to review the changes. The report will include\
+    \ a list of what each group should generate, with Michael and Gordon planning\
+    \ to further develop the final form of the report after gathering input from others.\n\
+    \n## **Group Meeting Planning Discussion**\n\nMichael and Gordon discussed organizing\
+    \ a meeting with 4 groups out of 7-9 total groups, allocating an hour and a half\
+    \ for presentations with 10-minute talks and 10-minute discussions. They agreed\
+    \ to focus on identifying what's not working, what can't be done due to lack of\
+    \ support, and extracting commonalities at a high level. The conversation ended\
+    \ with plans to address leadership positions and group changes before proceeding\
+    \ with the meeting organization.\n\n## **Document Organization and Reporting Plans**\n\
+    \nGordon and Michael discussed organizing a document with preliminary assignments\
+    \ and responsibilities. They agreed to create a concise email summarizing key\
+    \ information and groups, with Michael taking the lead on drafting this tomorrow.\
+    \ They also mentioned plans to implement 15-minute reports starting on the 20th,\
+    \ though the final format is still being determined.\n\n \n\n"
+  participants: []
+  tags: []
+  documents: []
+  contributions: []
+indico_category_sources:
+- name: AI/ML study group
+  source_type: category
+  category_id: 21213
+  base_url: https://indico.cern.ch
+  color: '#dee5f5'
+  title_matches: []
+  title_exclude_patterns: []
+- name: Offline Activity Coordination Board
+  source_type: event
+  event_id: '1688935'
+  base_url: https://indico.cern.ch
+  color: '#ecf5de'
+  title_matches: []
+  title_exclude_patterns: []

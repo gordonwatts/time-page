@@ -41,19 +41,19 @@ uvx --from . committee build examples/committee.example.yaml --force
 committee init data/committee.project.yaml
 ```
 
-2. Add an Indico category source (optional):
+1. Add an Indico category source (optional):
 
 ```bash
 committee indico add data/committee.project.yaml https://indico.example.org/category/1234/ --title cern
 ```
 
-3. Validate the project file:
+1. Validate the project file:
 
 ```bash
 committee validate data/committee.project.yaml
 ```
 
-4. Build standalone page (this step also fetches Indico meetings for the effective date window):
+1. Build standalone page (this step also fetches Indico meetings for the effective date window):
 
 ```bash
 committee build data/committee.project.yaml --force
@@ -87,13 +87,13 @@ committee indico add data/committee.project.yaml https://indico.example.org/cate
 committee indico add data/committee.project.yaml https://indico.example.org/category/5678/ --title lhcb
 ```
 
-2. Optionally narrow imported meeting titles by regex:
+1. Optionally narrow imported meeting titles by regex:
 
 ```bash
 committee indico add data/committee.project.yaml https://indico.example.org/category/1234/ --title cern --title-match LUP --title-exclude "high school"
 ```
 
-3. Build. During build, configured sources are fetched and merged into the in-memory history before rendering:
+1. Build. During build, configured sources are fetched and merged into the in-memory history before rendering:
 
 ```bash
 committee build data/committee.project.yaml --from 2024-01-01 --to 2024-12-31 --force
@@ -109,7 +109,7 @@ Effective build date window precedence is:
 1. CLI absolute range `--from` + `--to`
 2. CLI relative range `--past-weeks` + `--future-weeks`
 3. `date_window` in project YAML
-4. Default fallback: today Â± 1 week, with a warning log
+4. Default fallback: today +- 1 week, with a warning log
 
 Explicit examples:
 

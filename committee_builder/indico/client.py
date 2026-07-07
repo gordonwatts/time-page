@@ -17,7 +17,10 @@ from urllib.parse import urlencode, urlsplit
 import requests
 
 from committee_builder.indico.config import IndicoSource
-from committee_builder.indico.credentials import normalize_base_url, resolve_stored_api_key
+from committee_builder.indico.credentials import (
+    normalize_base_url,
+    resolve_stored_api_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -269,16 +272,20 @@ def fetch_event_meeting(
         return None
 
     meeting = _normalize_record(results[0])
-    meeting = meeting if meeting.url else IndicoMeeting(
-        remote_id=meeting.remote_id,
-        title=meeting.title,
-        start_datetime=meeting.start_datetime,
-        description=meeting.description,
-        minutes=meeting.minutes,
-        participants=meeting.participants,
-        documents=meeting.documents,
-        contributions=meeting.contributions,
-        url=f"{base_url.rstrip('/')}/event/{event_id}/",
+    meeting = (
+        meeting
+        if meeting.url
+        else IndicoMeeting(
+            remote_id=meeting.remote_id,
+            title=meeting.title,
+            start_datetime=meeting.start_datetime,
+            description=meeting.description,
+            minutes=meeting.minutes,
+            participants=meeting.participants,
+            documents=meeting.documents,
+            contributions=meeting.contributions,
+            url=f"{base_url.rstrip('/')}/event/{event_id}/",
+        )
     )
     try:
         return _hydrate_meeting_participants(
@@ -460,9 +467,7 @@ def _fetch_event_page_title(
     return title_text or None
 
 
-def _fetch_event_page(
-    event_url: str, api_key_env: str, api_token_env: str
-) -> str:
+def _fetch_event_page(event_url: str, api_key_env: str, api_token_env: str) -> str:
     auth = _build_auth(
         request_url=event_url,
         params={},
@@ -634,7 +639,6 @@ def _hydrate_meeting_participants(
         meeting.title,
         meeting.url,
     )
-    parsed_url = urlsplit(meeting.url)
     base_url = _base_url_from_request_url(meeting.url)
     payload = _fetch_event_export(
         base_url=base_url,
@@ -667,9 +671,11 @@ def _hydrate_meeting_participants(
         for document in contribution.documents
     ]
     minutes_html = _extract_minutes(results[0]) or meeting.minutes
-    minutes_image_count = len(
-        re.findall(r"<img\b", minutes_html, flags=re.IGNORECASE)
-    ) if minutes_html else 0
+    minutes_image_count = (
+        len(re.findall(r"<img\b", minutes_html, flags=re.IGNORECASE))
+        if minutes_html
+        else 0
+    )
     page_attachment_count = len(
         re.findall(r"/attachments/", event_page_html, flags=re.IGNORECASE)
     )
@@ -804,9 +810,7 @@ def _extract_documents(event_html: str, base_url: str) -> list[IndicoDocument]:
     return documents
 
 
-def _extract_contribution_documents(
-    record: Any, base_url: str
-) -> list[IndicoDocument]:
+def _extract_contribution_documents(record: Any, base_url: str) -> list[IndicoDocument]:
     return [
         document
         for contribution in _extract_contributions(record, base_url)
@@ -814,9 +818,7 @@ def _extract_contribution_documents(
     ]
 
 
-def _extract_contributions(
-    record: Any, base_url: str
-) -> list[IndicoContribution]:
+def _extract_contributions(record: Any, base_url: str) -> list[IndicoContribution]:
     contributions = record.get("contributions", []) if isinstance(record, dict) else []
     extracted: list[IndicoContribution] = []
     sorted_contributions = sorted(
@@ -977,7 +979,9 @@ def _collect_attachment_links(
     documents: list[tuple[str, str]] = []
     lowered_parent = parent_key.lower()
     if _looks_like_attachment_record(value, lowered_parent):
-        label = _pick_first_string(value, "filename", "fileName", "title", "name", "label")
+        label = _pick_first_string(
+            value, "filename", "fileName", "title", "name", "label"
+        )
         href = _pick_first_string(
             value, "download_url", "downloadUrl", "href", "url", "link_url", "linkUrl"
         )
@@ -990,11 +994,25 @@ def _collect_attachment_links(
 
 
 def _looks_like_attachment_record(value: dict[str, Any], parent_key: str) -> bool:
-    if parent_key in {"attachments", "attachment", "materials", "material", "files", "resources"}:
+    if parent_key in {
+        "attachments",
+        "attachment",
+        "materials",
+        "material",
+        "files",
+        "resources",
+    }:
         return True
     return any(
         key in value
-        for key in ("download_url", "downloadUrl", "filename", "fileName", "mimeType", "contentType")
+        for key in (
+            "download_url",
+            "downloadUrl",
+            "filename",
+            "fileName",
+            "mimeType",
+            "contentType",
+        )
     )
 
 
@@ -1068,14 +1086,26 @@ def _same_logical_document(left: IndicoDocument, right: IndicoDocument) -> bool:
 def _prefer_document(left: IndicoDocument, right: IndicoDocument) -> IndicoDocument:
     preferred = left if _document_rank(left) >= _document_rank(right) else right
     fallback = right if preferred is left else left
-    metadata_source = preferred if _document_context_rank(preferred) >= _document_context_rank(fallback) else fallback
-    url_source = preferred if _document_url_rank(preferred) >= _document_url_rank(fallback) else fallback
+    metadata_source = (
+        preferred
+        if _document_context_rank(preferred) >= _document_context_rank(fallback)
+        else fallback
+    )
+    url_source = (
+        preferred
+        if _document_url_rank(preferred) >= _document_url_rank(fallback)
+        else fallback
+    )
     return IndicoDocument(
         label=metadata_source.label or url_source.label,
         url=url_source.url,
         talk_title=metadata_source.talk_title or fallback.talk_title,
         speaker_names=metadata_source.speaker_names or fallback.speaker_names,
-        sort_key=preferred.sort_key if preferred.sort_key <= fallback.sort_key else fallback.sort_key,
+        sort_key=(
+            preferred.sort_key
+            if preferred.sort_key <= fallback.sort_key
+            else fallback.sort_key
+        ),
     )
 
 

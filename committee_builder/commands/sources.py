@@ -36,6 +36,8 @@ DEFAULT_EVENT_TYPE_STYLES = {
     "milestone": {"label": "Milestone", "color": "amber"},
     "external": {"label": "External", "color": "violet"},
 }
+
+
 def add_source_command(
     config: Path = typer.Argument(
         ..., help="Project config path or project name (adds .yaml if omitted)."
