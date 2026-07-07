@@ -151,13 +151,25 @@ ProjectFile = CommitteeHistory
 
 
 class IndicoSource(BaseModel):
-    """Configured Indico category source."""
+    """Configured Indico category or event source."""
 
     model_config = ConfigDict(extra="ignore")
 
     name: str = Field(min_length=1)
-    category_id: int
+    source_type: str = "category"
+    category_id: int | None = None
+    event_id: str | None = None
     base_url: str = Field(min_length=1)
     color: str = Field(min_length=1)
     title_matches: list[str] = Field(default_factory=list)
     title_exclude_patterns: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_source_type_fields(self) -> IndicoSource:
+        if self.source_type not in {"category", "event"}:
+            raise ValueError("source_type must be 'category' or 'event'.")
+        if self.source_type == "category" and self.category_id is None:
+            raise ValueError("category source requires category_id.")
+        if self.source_type == "event" and not self.event_id:
+            raise ValueError("event source requires event_id.")
+        return self

@@ -17,7 +17,10 @@ from urllib.parse import urlencode, urlsplit
 import requests
 
 from committee_builder.indico.config import IndicoSource
-from committee_builder.indico.credentials import normalize_base_url, resolve_stored_api_key
+from committee_builder.indico.credentials import (
+    normalize_base_url,
+    resolve_stored_api_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +194,118 @@ def fetch_category_title(
     raise RuntimeError(f"No title returned for category {category_id}.")
 
 
+def fetch_event_title(
+    base_url: str,
+    event_id: str,
+    api_key_env: str = "INDICO_API_KEY",
+    api_token_env: str = "INDICO_API_TOKEN",
+) -> str:
+    """Resolve an event title from Indico."""
+    payload = _fetch_event_export(
+        base_url=base_url,
+        event_id=event_id,
+        query_params={},
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    results = payload.get("results", [])
+    if results:
+        normalized = _normalize_record(results[0])
+        title = normalized.title.strip()
+        if title:
+            return title
+
+    category_page_title = _fetch_event_page_title(
+        base_url=base_url,
+        event_id=event_id,
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    if category_page_title:
+        return category_page_title
+
+    if _auth_mode_for_base_url(base_url, api_key_env, api_token_env) is None:
+        raise IndicoAuthError(
+            (
+                f"No title returned for event {event_id} at {base_url}. "
+                "The event may require authentication. Set INDICO_API_TOKEN/INDICO_API_KEY "
+                "or store a project-local credential with "
+                "`committee indico api-key BASE_URL TOKEN`."
+            )
+        )
+    raise RuntimeError(f"No title returned for event {event_id}.")
+
+
+def fetch_event_meeting(
+    base_url: str,
+    event_id: str,
+    api_key_env: str = "INDICO_API_KEY",
+    api_token_env: str = "INDICO_API_TOKEN",
+) -> IndicoMeeting | None:
+    """Fetch one event and normalize to an IndicoMeeting."""
+    payload = _fetch_event_export(
+        base_url=base_url,
+        event_id=event_id,
+        query_params={"detail": "contributions"},
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    results = payload.get("results", [])
+    if not results:
+        if (
+            _auth_mode_for_base_url(base_url, api_key_env, api_token_env) is None
+            and _fetch_event_page_title(
+                base_url=base_url,
+                event_id=event_id,
+                api_key_env=api_key_env,
+                api_token_env=api_token_env,
+            )
+            is None
+        ):
+            raise IndicoAuthError(
+                (
+                    f"Event {event_id} at {base_url} did not return public data. "
+                    "Set INDICO_API_TOKEN/INDICO_API_KEY or store a project-local "
+                    "credential with `committee indico api-key BASE_URL TOKEN`."
+                )
+            )
+        return None
+
+    meeting = _normalize_record(results[0])
+    meeting = (
+        meeting
+        if meeting.url
+        else IndicoMeeting(
+            remote_id=meeting.remote_id,
+            title=meeting.title,
+            start_datetime=meeting.start_datetime,
+            description=meeting.description,
+            minutes=meeting.minutes,
+            participants=meeting.participants,
+            documents=meeting.documents,
+            contributions=meeting.contributions,
+            url=f"{base_url.rstrip('/')}/event/{event_id}/",
+        )
+    )
+    try:
+        return _hydrate_meeting_participants(
+            meeting,
+            api_key_env=api_key_env,
+            api_token_env=api_token_env,
+        )
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else None
+        if status_code not in {401, 403}:
+            raise
+        logger.warning(
+            "Skipping agenda details for %s (%s) because Indico returned HTTP %s.",
+            meeting.title,
+            meeting.remote_id,
+            status_code,
+        )
+        return meeting
+
+
 def _fetch_category_export(
     base_url: str,
     category_id: int,
@@ -313,9 +428,46 @@ def _fetch_category_page_title(
     return None
 
 
-def _fetch_event_page(
-    event_url: str, api_key_env: str, api_token_env: str
-) -> str:
+def _fetch_event_page_title(
+    base_url: str, event_id: str, api_key_env: str, api_token_env: str
+) -> str | None:
+    request_url = f"{base_url.rstrip('/')}/event/{event_id}/"
+    auth = _build_auth(
+        request_url=request_url,
+        params={},
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    response = requests.get(
+        request_url,
+        params=auth["params"],
+        timeout=30,
+        headers={
+            "User-Agent": "committee-history-builder/0.1",
+            **auth["headers"],
+        },
+    )
+    response.raise_for_status()
+    logger.debug(
+        "Fetched event page %s status=%s bytes=%s",
+        response.url,
+        response.status_code,
+        len(response.content),
+    )
+
+    title_match = re.search(r"<title>(.*?)</title>", response.text, re.DOTALL)
+    if not title_match:
+        return None
+    title_text = html.unescape(re.sub(r"\s+", " ", title_match.group(1))).strip()
+    for suffix in (" · Indico", "Â· Indico"):
+        if title_text.endswith(suffix):
+            event_title = title_text[: -len(suffix)].strip()
+            if event_title:
+                return event_title
+    return title_text or None
+
+
+def _fetch_event_page(event_url: str, api_key_env: str, api_token_env: str) -> str:
     auth = _build_auth(
         request_url=event_url,
         params={},
@@ -487,7 +639,6 @@ def _hydrate_meeting_participants(
         meeting.title,
         meeting.url,
     )
-    parsed_url = urlsplit(meeting.url)
     base_url = _base_url_from_request_url(meeting.url)
     payload = _fetch_event_export(
         base_url=base_url,
@@ -520,9 +671,11 @@ def _hydrate_meeting_participants(
         for document in contribution.documents
     ]
     minutes_html = _extract_minutes(results[0]) or meeting.minutes
-    minutes_image_count = len(
-        re.findall(r"<img\b", minutes_html, flags=re.IGNORECASE)
-    ) if minutes_html else 0
+    minutes_image_count = (
+        len(re.findall(r"<img\b", minutes_html, flags=re.IGNORECASE))
+        if minutes_html
+        else 0
+    )
     page_attachment_count = len(
         re.findall(r"/attachments/", event_page_html, flags=re.IGNORECASE)
     )
@@ -657,9 +810,7 @@ def _extract_documents(event_html: str, base_url: str) -> list[IndicoDocument]:
     return documents
 
 
-def _extract_contribution_documents(
-    record: Any, base_url: str
-) -> list[IndicoDocument]:
+def _extract_contribution_documents(record: Any, base_url: str) -> list[IndicoDocument]:
     return [
         document
         for contribution in _extract_contributions(record, base_url)
@@ -667,9 +818,7 @@ def _extract_contribution_documents(
     ]
 
 
-def _extract_contributions(
-    record: Any, base_url: str
-) -> list[IndicoContribution]:
+def _extract_contributions(record: Any, base_url: str) -> list[IndicoContribution]:
     contributions = record.get("contributions", []) if isinstance(record, dict) else []
     extracted: list[IndicoContribution] = []
     sorted_contributions = sorted(
@@ -830,7 +979,9 @@ def _collect_attachment_links(
     documents: list[tuple[str, str]] = []
     lowered_parent = parent_key.lower()
     if _looks_like_attachment_record(value, lowered_parent):
-        label = _pick_first_string(value, "filename", "fileName", "title", "name", "label")
+        label = _pick_first_string(
+            value, "filename", "fileName", "title", "name", "label"
+        )
         href = _pick_first_string(
             value, "download_url", "downloadUrl", "href", "url", "link_url", "linkUrl"
         )
@@ -843,11 +994,25 @@ def _collect_attachment_links(
 
 
 def _looks_like_attachment_record(value: dict[str, Any], parent_key: str) -> bool:
-    if parent_key in {"attachments", "attachment", "materials", "material", "files", "resources"}:
+    if parent_key in {
+        "attachments",
+        "attachment",
+        "materials",
+        "material",
+        "files",
+        "resources",
+    }:
         return True
     return any(
         key in value
-        for key in ("download_url", "downloadUrl", "filename", "fileName", "mimeType", "contentType")
+        for key in (
+            "download_url",
+            "downloadUrl",
+            "filename",
+            "fileName",
+            "mimeType",
+            "contentType",
+        )
     )
 
 
@@ -921,14 +1086,26 @@ def _same_logical_document(left: IndicoDocument, right: IndicoDocument) -> bool:
 def _prefer_document(left: IndicoDocument, right: IndicoDocument) -> IndicoDocument:
     preferred = left if _document_rank(left) >= _document_rank(right) else right
     fallback = right if preferred is left else left
-    metadata_source = preferred if _document_context_rank(preferred) >= _document_context_rank(fallback) else fallback
-    url_source = preferred if _document_url_rank(preferred) >= _document_url_rank(fallback) else fallback
+    metadata_source = (
+        preferred
+        if _document_context_rank(preferred) >= _document_context_rank(fallback)
+        else fallback
+    )
+    url_source = (
+        preferred
+        if _document_url_rank(preferred) >= _document_url_rank(fallback)
+        else fallback
+    )
     return IndicoDocument(
         label=metadata_source.label or url_source.label,
         url=url_source.url,
         talk_title=metadata_source.talk_title or fallback.talk_title,
         speaker_names=metadata_source.speaker_names or fallback.speaker_names,
-        sort_key=preferred.sort_key if preferred.sort_key <= fallback.sort_key else fallback.sort_key,
+        sort_key=(
+            preferred.sort_key
+            if preferred.sort_key <= fallback.sort_key
+            else fallback.sort_key
+        ),
     )
 
 

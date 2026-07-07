@@ -15,6 +15,7 @@ import webcolors
 from committee_builder.indico.client import (
     IndicoAuthError,
     fetch_category_title,
+    fetch_event_title,
 )
 from committee_builder.indico.credentials import normalize_base_url, store_api_key
 from committee_builder.io.paths import normalize_yaml_path
@@ -35,17 +36,23 @@ DEFAULT_EVENT_TYPE_STYLES = {
     "milestone": {"label": "Milestone", "color": "amber"},
     "external": {"label": "External", "color": "violet"},
 }
+
+
 def add_source_command(
     config: Path = typer.Argument(
         ..., help="Project config path or project name (adds .yaml if omitted)."
     ),
-    category_url: str = typer.Argument(
-        ..., help="Full Indico category URL (for example https://host/category/1234/)."
+    indico_url: str = typer.Argument(
+        ...,
+        help=(
+            "Full Indico category or event URL "
+            "(for example https://host/category/1234/ or https://host/event/5678/)."
+        ),
     ),
     title: str | None = typer.Option(
         None,
         "--title",
-        help="Optional source title. Defaults to the remote category name.",
+        help="Optional source title. Defaults to the remote category/event name.",
     ),
     api_key_env: str = typer.Option(
         DEFAULT_API_KEY_ENV,
@@ -81,14 +88,22 @@ def add_source_command(
 ) -> None:
     """Add or replace a source in the project config."""
     config_path = _normalize_config_path(config)
-    base_url, category_id = _parse_category_url(category_url)
+    parsed_source = _parse_indico_url(indico_url)
     try:
-        source_name = title or fetch_category_title(
-            base_url=base_url,
-            category_id=category_id,
-            api_key_env=api_key_env,
-            api_token_env=api_token_env,
-        )
+        if parsed_source["source_type"] == "category":
+            source_name = title or fetch_category_title(
+                base_url=parsed_source["base_url"],
+                category_id=parsed_source["category_id"],
+                api_key_env=api_key_env,
+                api_token_env=api_token_env,
+            )
+        else:
+            source_name = title or fetch_event_title(
+                base_url=parsed_source["base_url"],
+                event_id=parsed_source["event_id"],
+                api_key_env=api_key_env,
+                api_token_env=api_token_env,
+            )
     except IndicoAuthError as exc:
         logger.error("%s", exc)
         raise
@@ -130,8 +145,10 @@ def add_source_command(
     filtered_sources.append(
         IndicoSource(
             name=source_name,
-            category_id=category_id,
-            base_url=base_url,
+            source_type=parsed_source["source_type"],
+            category_id=parsed_source.get("category_id"),
+            event_id=parsed_source.get("event_id"),
+            base_url=parsed_source["base_url"],
             color=source_color,
             title_matches=title_matches,
             title_exclude_patterns=title_exclude_patterns,
@@ -175,8 +192,14 @@ def list_sources_command(
             if source.title_exclude_patterns
             else ""
         )
+        source_type = source.source_type or "category"
+        source_target = (
+            f"category={source.category_id}"
+            if source_type == "category"
+            else f"event={source.event_id}"
+        )
         typer.echo(
-            f"{source.name}: category={source.category_id}, base_url={source.base_url}, "
+            f"{source.name}: {source_target}, base_url={source.base_url}, "
             f"color={source.color}{match_summary}{exclude_summary}"
         )
 
@@ -226,23 +249,38 @@ def _normalize_config_path(config: Path) -> Path:
     return normalize_yaml_path(config)
 
 
-def _parse_category_url(category_url: str) -> tuple[str, int]:
-    parsed = urlparse(category_url)
+def _parse_indico_url(indico_url: str) -> dict[str, str | int]:
+    parsed = urlparse(indico_url)
     if not parsed.scheme or not parsed.netloc:
         raise typer.BadParameter(
-            f"Invalid category URL '{category_url}'. Include scheme and host."
+            f"Invalid Indico URL '{indico_url}'. Include scheme and host."
         )
 
-    match = re.search(r"^(?P<prefix>.*?)/category/(?P<id>\d+)(?:/|$)", parsed.path)
-    if not match:
-        raise typer.BadParameter(
-            "Category URL must include '/category/<id>' in the path."
-        )
+    category_match = re.search(
+        r"^(?P<prefix>.*?)/category/(?P<id>\d+)(?:/|$)", parsed.path
+    )
+    if category_match:
+        prefix = category_match.group("prefix")
+        base_url = normalize_base_url(f"{parsed.scheme}://{parsed.netloc}{prefix}")
+        return {
+            "source_type": "category",
+            "base_url": base_url,
+            "category_id": int(category_match.group("id")),
+        }
 
-    prefix = match.group("prefix")
-    base_url = normalize_base_url(f"{parsed.scheme}://{parsed.netloc}{prefix}")
-    category_id = int(match.group("id"))
-    return base_url, category_id
+    event_match = re.search(r"^(?P<prefix>.*?)/event/(?P<id>\d+)(?:/|$)", parsed.path)
+    if event_match:
+        prefix = event_match.group("prefix")
+        base_url = normalize_base_url(f"{parsed.scheme}://{parsed.netloc}{prefix}")
+        return {
+            "source_type": "event",
+            "base_url": base_url,
+            "event_id": event_match.group("id"),
+        }
+
+    raise typer.BadParameter(
+        "Indico URL must include '/category/<id>' or '/event/<id>' in the path."
+    )
 
 
 def _normalize_source_color(value: str) -> str:

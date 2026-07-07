@@ -172,3 +172,67 @@ indico_category_sources:
     )
     # Source attribution should carry through for imported events.
     assert '"source_name": "CERN"' in rendered
+
+
+def test_build_fetches_event_source_and_honors_range(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source_yaml = tmp_path / "project.yaml"
+    source_yaml.write_text(
+        """
+schema_version: "1.0"
+metadata:
+    name: "Pipeline Event Source Test"
+date_window:
+    start_date: "2025-01-01"
+    end_date: "2025-01-31"
+event_type_styles:
+    meeting: {label: "Meeting", color: "sky"}
+    report: {label: "Report", color: "emerald"}
+    decision: {label: "Decision", color: "rose"}
+    milestone: {label: "Milestone", color: "amber"}
+    external: {label: "External", color: "violet"}
+events: []
+indico_category_sources:
+    - name: "ATLAS Study Group"
+      source_type: "event"
+      event_id: "99"
+      base_url: "https://indico.example.com"
+      color: "#f3d9f2"
+""",
+        encoding="utf-8",
+    )
+
+    def _fake_fetch_event_meeting(*_args, **_kwargs) -> IndicoMeeting:
+        return IndicoMeeting(
+            remote_id="99",
+            title="ATLAS Study Group",
+            start_datetime=datetime(2025, 1, 20, 9, 0, 0),
+            description="<p>Study group meeting</p>",
+            participants=["Alice"],
+            documents=[],
+            url="https://indico.example.com/event/99",
+        )
+
+    monkeypatch.setattr(
+        "committee_builder.pipeline.build_pipeline.fetch_event_meeting",
+        _fake_fetch_event_meeting,
+    )
+
+    output = build_html(source_yaml, output_path=None, overwrite=False)
+    rendered = output.read_text(encoding="utf-8")
+    assert '"id": "ATLAS Study Group-99"' in rendered
+    assert "Study group meeting" in rendered
+
+    # Same event source should be excluded when outside the effective range.
+    source_yaml.write_text(
+        source_yaml.read_text(encoding="utf-8").replace(
+            'end_date: "2025-01-31"',
+            'end_date: "2025-01-10"',
+        ),
+        encoding="utf-8",
+    )
+    output = build_html(source_yaml, output_path=output, overwrite=True)
+    rendered = output.read_text(encoding="utf-8")
+    assert '"id": "ATLAS Study Group-99"' not in rendered
+    assert "Study group meeting" not in rendered
