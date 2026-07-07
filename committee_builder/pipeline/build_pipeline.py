@@ -15,6 +15,7 @@ from committee_builder.indico.client import (
     IndicoContribution,
     IndicoDocument,
     IndicoMeeting,
+    fetch_event_meeting,
     fetch_meetings,
 )
 from committee_builder.indico.markdown import html_to_markdown
@@ -204,19 +205,38 @@ def _fetch_source_events(
 ) -> list[CommitteeEvent]:
     source_events: list[CommitteeEvent] = []
     for source in history.indico_category_sources:
+        source_type = source.source_type or "category"
         try:
-            meetings = fetch_meetings(
-                source,
-                range_start,
-                range_end,
-                api_key_env=DEFAULT_API_KEY_ENV,
-                api_token_env=DEFAULT_API_TOKEN_ENV,
-            )
+            if source_type == "event":
+                if not source.event_id:
+                    logger.warning(
+                        "Skipping source '%s': event source missing event_id.",
+                        source.name,
+                    )
+                    continue
+                meeting = fetch_event_meeting(
+                    base_url=source.base_url,
+                    event_id=source.event_id,
+                    api_key_env=DEFAULT_API_KEY_ENV,
+                    api_token_env=DEFAULT_API_TOKEN_ENV,
+                )
+                meetings = [meeting] if meeting is not None else []
+            else:
+                meetings = fetch_meetings(
+                    source,
+                    range_start,
+                    range_end,
+                    api_key_env=DEFAULT_API_KEY_ENV,
+                    api_token_env=DEFAULT_API_TOKEN_ENV,
+                )
         except IndicoAuthError as exc:
             logger.warning("Skipping source '%s': %s", source.name, exc)
             continue
 
         for meeting in meetings:
+            meeting_date = meeting.start_datetime.date()
+            if meeting_date < range_start or meeting_date > range_end:
+                continue
             if not _meeting_matches_title_patterns(meeting.title, source.title_matches):
                 continue
             if _meeting_matches_title_exclusions(

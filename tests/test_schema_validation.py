@@ -3,6 +3,7 @@
 from datetime import date
 
 import pytest
+from pydantic import ValidationError
 
 from committee_builder.schema.models import CommitteeHistory
 from committee_builder.schema.validators import (
@@ -105,3 +106,34 @@ def test_duplicate_event_id_fails_semantics() -> None:
 
     with pytest.raises(SemanticValidationError):
         validate_semantics(history)
+
+
+def test_indico_source_defaults_to_category_when_source_type_missing() -> None:
+    doc = _base_doc()
+    doc["indico_category_sources"] = [
+        {
+            "name": "CERN",
+            "category_id": 11,
+            "base_url": "https://indico.example.com",
+            "color": "#abcdef",
+        }
+    ]
+
+    history = CommitteeHistory.model_validate(doc)
+    assert history.indico_category_sources[0].source_type == "category"
+    assert history.indico_category_sources[0].category_id == 11
+
+
+def test_indico_event_source_requires_event_id() -> None:
+    doc = _base_doc()
+    doc["indico_category_sources"] = [
+        {
+            "name": "ATLAS Event",
+            "source_type": "event",
+            "base_url": "https://indico.example.com",
+            "color": "#abcdef",
+        }
+    ]
+
+    with pytest.raises(ValidationError, match="event source requires event_id"):
+        CommitteeHistory.model_validate(doc)

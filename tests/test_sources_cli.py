@@ -110,6 +110,31 @@ def test_indico_add_uses_remote_title_when_not_supplied(
         assert "ATLAS: category=77" in list_result.stdout
 
 
+def test_indico_add_event_uses_remote_title_when_not_supplied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with runner.isolated_filesystem():
+        monkeypatch.setattr(
+            "committee_builder.commands.sources.fetch_event_title",
+            lambda **_kwargs: "ATLAS Study Group",
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "indico",
+                "add",
+                "my-project",
+                "https://indico.example.com/indico/event/77/",
+            ],
+        )
+        assert result.exit_code == 0
+
+        list_result = runner.invoke(app, ["indico", "list", "my-project"])
+        assert list_result.exit_code == 0
+        assert "ATLAS Study Group: event=77" in list_result.stdout
+
+
 def test_indico_add_reports_auth_error_for_protected_category(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -127,6 +152,30 @@ def test_indico_add_reports_auth_error_for_protected_category(
                     "indico",
                     "atlas",
                     "https://indico.example.com/category/77/",
+                ],
+            )
+
+        assert result.exit_code != 0
+        assert "auth required" in caplog.text
+
+
+def test_indico_add_reports_auth_error_for_protected_event(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    with runner.isolated_filesystem():
+        monkeypatch.setattr(
+            "committee_builder.commands.sources.fetch_event_title",
+            lambda **_kwargs: (_ for _ in ()).throw(IndicoAuthError("auth required")),
+        )
+
+        with caplog.at_level("ERROR"):
+            result = runner.invoke(
+                app,
+                [
+                    "add",
+                    "indico",
+                    "atlas",
+                    "https://indico.example.com/event/77/",
                 ],
             )
 

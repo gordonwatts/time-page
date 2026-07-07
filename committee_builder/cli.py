@@ -68,7 +68,7 @@ add_app = typer.Typer(help="Add events, Indico categories, and minutes content."
 add_app.command("event", help="Add a local event entry to project YAML.")(
     add_event_command
 )
-add_app.command("indico", help="Add an Indico category source to project config.")(
+add_app.command("indico", help="Add an Indico category or event source to project config.")(
     add_indico_category_command
 )
 add_app.command(
@@ -77,8 +77,8 @@ add_app.command(
 )(add_minutes_command)
 app.add_typer(add_app, name="add")
 
-indico_app = typer.Typer(help="Manage Indico categories and local API credentials.")
-indico_app.command("add", help="Add an Indico category to the project config.")(
+indico_app = typer.Typer(help="Manage Indico sources and local API credentials.")
+indico_app.command("add", help="Add an Indico category or event to the project config.")(
     add_source_command
 )
 indico_app.command("list", help="List configured Indico categories.")(

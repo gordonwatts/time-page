@@ -71,9 +71,9 @@ data/committee.project.html
 - `committee validate PROJECT_YAML`
 - `committee init PATH [--force] [--title TEXT] [--from DATE_EXPR] [--to DATE_EXPR]`
 - `committee add event PROJECT_YAML ...`
-- `committee add indico PROJECT_YAML CATEGORY_URL [--title TITLE]`
+- `committee add indico PROJECT_YAML INDICO_URL [--title TITLE]` (supports `/category/<id>` and `/event/<id>` URLs)
 - `committee add minutes PROJECT_YAML EVENT_ID MINUTES_PATH [--mode append|replace] [--target event|contribution] [--contribution-index N] [--contribution-title TITLE]`
-- `committee indico add PROJECT_YAML CATEGORY_URL [--title TITLE] [--title-match PATTERN] [--title-exclude PATTERN] [--color COLOR] [--api-key-env ENV] [--api-token-env ENV]`
+- `committee indico add PROJECT_YAML INDICO_URL [--title TITLE] [--title-match PATTERN] [--title-exclude PATTERN] [--color COLOR] [--api-key-env ENV] [--api-token-env ENV]` (supports `/category/<id>` and `/event/<id>` URLs)
 - `committee indico list PROJECT_YAML`
 - `committee indico remove PROJECT_YAML SOURCE_NAME`
 - `committee indico api-key BASE_URL TOKEN [--api-key-env ENV]`

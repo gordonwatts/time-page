@@ -59,8 +59,12 @@ def add_indico_category_command(
     project_config: Path = typer.Argument(
         ..., help="Project config path or project name (adds .yaml if omitted)."
     ),
-    category_url: str = typer.Argument(
-        ..., help="Full Indico category URL, e.g. https://host/category/1234/."
+    indico_url: str = typer.Argument(
+        ...,
+        help=(
+            "Full Indico category or event URL, "
+            "e.g. https://host/category/1234/ or https://host/event/5678/."
+        ),
     ),
     title: str | None = typer.Option(
         None,
@@ -68,10 +72,10 @@ def add_indico_category_command(
         help="Optional source title. Defaults to fetched category title.",
     ),
 ) -> None:
-    """Add an Indico category source to project configuration."""
+    """Add an Indico category or event source to project configuration."""
     add_source_command(
         config=project_config,
-        category_url=category_url,
+        indico_url=indico_url,
         title=title,
         api_key_env="INDICO_API_KEY",
         api_token_env="INDICO_API_TOKEN",

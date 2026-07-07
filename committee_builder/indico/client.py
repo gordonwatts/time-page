@@ -191,6 +191,114 @@ def fetch_category_title(
     raise RuntimeError(f"No title returned for category {category_id}.")
 
 
+def fetch_event_title(
+    base_url: str,
+    event_id: str,
+    api_key_env: str = "INDICO_API_KEY",
+    api_token_env: str = "INDICO_API_TOKEN",
+) -> str:
+    """Resolve an event title from Indico."""
+    payload = _fetch_event_export(
+        base_url=base_url,
+        event_id=event_id,
+        query_params={},
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    results = payload.get("results", [])
+    if results:
+        normalized = _normalize_record(results[0])
+        title = normalized.title.strip()
+        if title:
+            return title
+
+    category_page_title = _fetch_event_page_title(
+        base_url=base_url,
+        event_id=event_id,
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    if category_page_title:
+        return category_page_title
+
+    if _auth_mode_for_base_url(base_url, api_key_env, api_token_env) is None:
+        raise IndicoAuthError(
+            (
+                f"No title returned for event {event_id} at {base_url}. "
+                "The event may require authentication. Set INDICO_API_TOKEN/INDICO_API_KEY "
+                "or store a project-local credential with "
+                "`committee indico api-key BASE_URL TOKEN`."
+            )
+        )
+    raise RuntimeError(f"No title returned for event {event_id}.")
+
+
+def fetch_event_meeting(
+    base_url: str,
+    event_id: str,
+    api_key_env: str = "INDICO_API_KEY",
+    api_token_env: str = "INDICO_API_TOKEN",
+) -> IndicoMeeting | None:
+    """Fetch one event and normalize to an IndicoMeeting."""
+    payload = _fetch_event_export(
+        base_url=base_url,
+        event_id=event_id,
+        query_params={"detail": "contributions"},
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    results = payload.get("results", [])
+    if not results:
+        if (
+            _auth_mode_for_base_url(base_url, api_key_env, api_token_env) is None
+            and _fetch_event_page_title(
+                base_url=base_url,
+                event_id=event_id,
+                api_key_env=api_key_env,
+                api_token_env=api_token_env,
+            )
+            is None
+        ):
+            raise IndicoAuthError(
+                (
+                    f"Event {event_id} at {base_url} did not return public data. "
+                    "Set INDICO_API_TOKEN/INDICO_API_KEY or store a project-local "
+                    "credential with `committee indico api-key BASE_URL TOKEN`."
+                )
+            )
+        return None
+
+    meeting = _normalize_record(results[0])
+    meeting = meeting if meeting.url else IndicoMeeting(
+        remote_id=meeting.remote_id,
+        title=meeting.title,
+        start_datetime=meeting.start_datetime,
+        description=meeting.description,
+        minutes=meeting.minutes,
+        participants=meeting.participants,
+        documents=meeting.documents,
+        contributions=meeting.contributions,
+        url=f"{base_url.rstrip('/')}/event/{event_id}/",
+    )
+    try:
+        return _hydrate_meeting_participants(
+            meeting,
+            api_key_env=api_key_env,
+            api_token_env=api_token_env,
+        )
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else None
+        if status_code not in {401, 403}:
+            raise
+        logger.warning(
+            "Skipping agenda details for %s (%s) because Indico returned HTTP %s.",
+            meeting.title,
+            meeting.remote_id,
+            status_code,
+        )
+        return meeting
+
+
 def _fetch_category_export(
     base_url: str,
     category_id: int,
@@ -311,6 +419,45 @@ def _fetch_category_page_title(
                 if category_title:
                     return category_title
     return None
+
+
+def _fetch_event_page_title(
+    base_url: str, event_id: str, api_key_env: str, api_token_env: str
+) -> str | None:
+    request_url = f"{base_url.rstrip('/')}/event/{event_id}/"
+    auth = _build_auth(
+        request_url=request_url,
+        params={},
+        api_key_env=api_key_env,
+        api_token_env=api_token_env,
+    )
+    response = requests.get(
+        request_url,
+        params=auth["params"],
+        timeout=30,
+        headers={
+            "User-Agent": "committee-history-builder/0.1",
+            **auth["headers"],
+        },
+    )
+    response.raise_for_status()
+    logger.debug(
+        "Fetched event page %s status=%s bytes=%s",
+        response.url,
+        response.status_code,
+        len(response.content),
+    )
+
+    title_match = re.search(r"<title>(.*?)</title>", response.text, re.DOTALL)
+    if not title_match:
+        return None
+    title_text = html.unescape(re.sub(r"\s+", " ", title_match.group(1))).strip()
+    for suffix in (" · Indico", "Â· Indico"):
+        if title_text.endswith(suffix):
+            event_title = title_text[: -len(suffix)].strip()
+            if event_title:
+                return event_title
+    return title_text or None
 
 
 def _fetch_event_page(
